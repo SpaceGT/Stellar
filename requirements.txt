@@ -1,0 +1,16 @@
+aiohttp
+beautifulsoup4
+discord.py
+google-api-python-client
+google-auth-oauthlib
+jsonschema
+lxml
+packaging
+pillow
+python-dotenv
+pyzmq
+requests
+thefuzz
+types-beautifulsoup4
+types-jsonschema
+types-requests

@@ -1,0 +1,120 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+        "$schema": {
+            "type": "string"
+        },
+        "software": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the software."
+                },
+                "version": {
+                    "type": "string",
+                    "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+                    "description": "Semantic version of the software."
+                },
+                "user_agent": {
+                    "type": "string",
+                    "description": "User agent used for API calls."
+                },
+                "webhook": {
+                    "type": "string",
+                    "description": "Webhook to send errors to."
+                },
+                "tick": {
+                    "type": "string",
+                    "description": "Daily time to perform certain actions."
+                }
+            },
+            "required": [
+                "version",
+                "webhook",
+                "tick"
+            ]
+        },
+        "eddn": {
+            "type": "object",
+            "properties": {
+                "software_name": {
+                    "type": "string",
+                    "default": "add",
+                    "description": "Software name when sending data to EDDN."
+                },
+                "software_version": {
+                    "type": "string",
+                    "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+                    "description": "Software version when sending data to EDDN."
+                },
+                "user_agent": {
+                    "type": "string",
+                    "description": "User agent to use when sending data to EDDN."
+                },
+                "game_version": {
+                    "type": "string",
+                    "description": "Reported Elite Dangerous version when sending data to EDDN."
+                },
+                "game_build": {
+                    "type": "string",
+                    "description": "Reported Elite Dangerous build number when sending data to EDDN."
+                }
+            },
+            "required": [
+                "game_version",
+                "game_build"
+            ]
+        },
+        "discord": {
+            "type": "object",
+            "properties": {
+                "hauler_role_id": {
+                    "type": "integer",
+                    "description": "Discord role to ping in restock tasks."
+                },
+                "depot_role_id": {
+                    "type": "integer",
+                    "description": "Discord role for depot owners."
+                },
+                "rescue_role_id": {
+                    "type": "integer",
+                    "description": "Discord role to ping in rescue tasks."
+                },
+                "restock_channel_id": {
+                    "type": "integer",
+                    "description": "Forum channel to post restock tasks."
+                },
+                "rescue_channel_id": {
+                    "type": "integer",
+                    "description": "Forum channel to post rescue tasks."
+                },
+                "alert_channel_id": {
+                    "type": "integer",
+                    "description": "Text channel to send outdated market alerts."
+                },
+                "main_guild_id": {
+                    "type": "integer",
+                    "description": "Main guild for restock tasks and standard slash commands."
+                },
+                "test_guild_id": {
+                    "type": "integer",
+                    "description": "Test guild for debugging and maintenance slash commands."
+                }
+            },
+            "required": [
+                "hauler_role_id",
+                "restock_channel_id",
+                "main_guild_id",
+                "test_guild_id"
+            ]
+        }
+    },
+    "required": [
+        "$schema",
+        "software",
+        "eddn",
+        "discord"
+    ]
+}
