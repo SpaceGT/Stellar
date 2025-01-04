@@ -1,14 +1,16 @@
 """Display the carriers nearest to a system of choice."""
 
+import asyncio
 import logging
 from io import BytesIO
 from typing import Any
 
 from discord import Client, File, Interaction, app_commands
+from discord.app_commands import Choice
 from discord.ext import commands
 
 from bot.core import CLIENT
-from external import edsm
+from external import edsm, spansh
 from services.depots import DEPOT_SERVICE
 from settings import DISCORD
 from utils import table
@@ -84,6 +86,29 @@ class CarrierInfo(commands.Cog):
             await interaction.followup.send(response, ephemeral=True, file=file)
 
         _LOGGER.info("Send carrier info to %s", interaction.user.name)
+
+    @depots.autocomplete("system")
+    async def system_autocomplete(
+        self,
+        _: Interaction[Client],
+        current: str,
+    ) -> list[Choice[str]]:
+        """Generate suggestions for target systems."""
+        if not current:
+            return []
+
+        choices: list[Choice[str]] = []
+
+        try:
+            systems = await asyncio.wait_for(spansh.predict_system(current), timeout=3)
+        except TimeoutError:
+            _LOGGER.warning("Could not find system suggestions for %s", current)
+        else:
+            choices = [
+                Choice(name=str(system), value=str(system)) for system in systems[:5]
+            ]
+
+        return choices
 
 
 def main() -> None:
