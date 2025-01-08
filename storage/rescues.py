@@ -1,5 +1,6 @@
 """Fetch and push rescue tasks from the Google Sheet."""
 
+import logging
 import re
 from datetime import datetime, timezone
 from typing import Any, Iterable
@@ -12,10 +13,12 @@ from utils.points import Point3D
 
 from .sheet import SPREADSHEET
 
+_LOGGER = logging.getLogger(__name__)
+
 _RESCUE_CHECKS = {
     "Client": (int, None),
     "System": (str, None),
-    "Rescuers": (str, re.compile(r"^(?:\d+, ?)*(?:\d+)?$", re.MULTILINE)),
+    "Rescuers": (str | None, re.compile(r"^(?:\d+, ?)*(?:\d+)?$", re.MULTILINE)),
     "Tritium": (int | None, None),
     "Message": (int, None),
     "Start": (int, None),
@@ -24,19 +27,19 @@ _RESCUE_CHECKS = {
 }
 
 
-def _load_rescue(headers: list[str], row: list[Any]) -> Rescue:
+def _load_rescue(headers: list[str], row: list[Any], index: int) -> Rescue:
     data, missing = sheets.validate_row(
         headers, row, _RESCUE_CHECKS  #  type: ignore [arg-type]
     )
 
     if missing:
-        raise ValueError(
-            f"Error loading rescue: {list(zip(headers, row))} (missing {missing})"
+        message = sheets.validation_message(
+            missing, _RESCUE_CHECKS  #  type: ignore [arg-type]
         )
+        raise ValueError(f"Error loading row {index}\n{message}")
 
-    assert isinstance(data["Rescuers"], str)
-
-    if data["Rescuers"] == "":
+    assert isinstance(data["Rescuers"], str | None)
+    if data["Rescuers"] is None:
         rescuers = []
     else:
         rescuers = [
@@ -81,8 +84,16 @@ async def load_rescues(lazy: bool = False) -> Iterable[Rescue]:
     sheet = SPREADSHEET["Rescue"]
     headers: list[str] = sheet[0]
 
-    bridges = [_load_rescue(headers, row) for row in sheet[1::]]
-    return bridges
+    rescues: list[Rescue] = []
+    for index, row in enumerate(sheet[1::], start=2):
+        try:
+            rescue = _load_rescue(headers, row, index)
+        except ValueError as error:
+            _LOGGER.error(error.args[0])
+        else:
+            rescues.append(rescue)
+
+    return rescues
 
 
 async def push_rescues(rescues: Iterable[Rescue]) -> None:

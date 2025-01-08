@@ -1,5 +1,6 @@
 """Fetch and push carrier depots from the Google Sheet."""
 
+import logging
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -10,6 +11,8 @@ from utils import sheets
 from utils.points import Point3D
 
 from .sheet import SPREADSHEET
+
+_LOGGER = logging.getLogger(__name__)
 
 _CARRIER_CHECKS = {
     "ID": (str, re.compile(r"^[A-Z0-9]{3}-[A-Z0-9]{3}$", re.MULTILINE)),
@@ -33,13 +36,25 @@ _CARRIER_CHECKS = {
 }
 
 
-def _load_carrier(headers: list[str], row: list[Any]) -> Carrier:
+def _load_carrier(headers: list[str], row: list[Any], index: int) -> Carrier | None:
     data, missing = sheets.validate_row(headers, row, _CARRIER_CHECKS)
 
     if missing:
-        raise ValueError(
-            f"Error loading carrier: {list(zip(headers, row))} (missing {missing})"
-        )
+        callsign: str = data["ID"] if "ID" in data else "MISSING"
+        name: str = data["Name"] if "Name" in data else "MISSING"
+
+        if "MISSING" == callsign == name:
+            suffix = f"row {index}"
+        else:
+            suffix = f"carrier '[{callsign}] {name}'"
+
+        # Allow skipping inactive carriers
+        if "Active" in data and not data["Active"]:
+            _LOGGER.warning("Ignoring %s (inactive)", suffix)
+            return None
+
+        message = sheets.validation_message(missing, _CARRIER_CHECKS)
+        raise ValueError(f"Cannot load {suffix}\n{message}")
 
     market = {
         "price": data["Price"],
@@ -87,7 +102,16 @@ async def load_carriers(lazy: bool = False) -> list[Carrier]:
     sheet = SPREADSHEET["Carrier"]
     headers: list[str] = sheet[0]
 
-    carriers = [_load_carrier(headers, row) for row in sheet[1::]]
+    carriers: list[Carrier] = []
+    for index, row in enumerate(sheet[1::], start=2):
+        try:
+            carrier = _load_carrier(headers, row, index)
+        except ValueError as error:
+            _LOGGER.error(error.args[0])
+        else:
+            if carrier:
+                carriers.append(carrier)
+
     return carriers
 
 

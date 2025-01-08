@@ -1,5 +1,6 @@
 """Fetch and push restock tasks from the Google Sheet."""
 
+import logging
 import re
 from datetime import datetime, timezone
 from typing import Any, Iterable
@@ -12,6 +13,8 @@ from utils.points import Point3D
 
 from .sheet import SPREADSHEET
 
+_LOGGER = logging.getLogger(__name__)
+
 _RESTOCK_CHECKS = {
     "ID": (str, re.compile(r"^[A-Z0-9]{3}-[A-Z0-9]{3}$", re.MULTILINE)),
     "Name": (str, None),
@@ -20,7 +23,7 @@ _RESTOCK_CHECKS = {
     "Delivered": (int, None),
     "System": (str, None),
     "Sell Price": (int | None, None),
-    "Haulers": (str, re.compile(r"^(?:\d+, ?)*(?:\d+)?$", re.MULTILINE)),
+    "Haulers": (str | None, re.compile(r"^(?:\d+, ?)*(?:\d+)?$", re.MULTILINE)),
     "Message": (int, None),
     "Start": (int, None),
     "End": (int | None, None),
@@ -28,18 +31,19 @@ _RESTOCK_CHECKS = {
 }
 
 
-def _load_restock(headers: list[str], row: list[Any]) -> Restock:
+def _load_restock(headers: list[str], row: list[Any], index: int) -> Restock:
     data, missing = sheets.validate_row(
         headers, row, _RESTOCK_CHECKS  #  type: ignore [arg-type]
     )
 
     if missing:
-        raise ValueError(
-            f"Error loading restock: {list(zip(headers, row))} (missing {missing})"
+        message = sheets.validation_message(
+            missing, _RESTOCK_CHECKS  #  type: ignore [arg-type]
         )
+        raise ValueError(f"Error loading row {index}\n{message}")
 
-    assert isinstance(data["Haulers"], str)
-    if data["Haulers"] == "":
+    assert isinstance(data["Haulers"], str | None)
+    if data["Haulers"] is None:
         haulers = []
     else:
         haulers = [
@@ -82,8 +86,16 @@ async def load_restocks(lazy: bool = False) -> Iterable[Restock]:
     sheet = SPREADSHEET["Restock"]
     headers: list[str] = sheet[0]
 
-    bridges = [_load_restock(headers, row) for row in sheet[1::]]
-    return bridges
+    restocks: list[Restock] = []
+    for index, row in enumerate(sheet[1::], start=2):
+        try:
+            restock = _load_restock(headers, row, index)
+        except ValueError as error:
+            _LOGGER.error(error.args[0])
+        else:
+            restocks.append(restock)
+
+    return restocks
 
 
 async def push_restocks(restocks: Iterable[Restock]) -> None:

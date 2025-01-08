@@ -1,5 +1,6 @@
 """Fetch and push Colonia Bridge stations from the Google Sheet."""
 
+import logging
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -10,6 +11,8 @@ from utils import sheets
 from utils.points import Point3D
 
 from .sheet import SPREADSHEET
+
+_LOGGER = logging.getLogger(__name__)
 
 _BRIDGE_CHECKS = {
     "Name": (str, None),
@@ -25,13 +28,21 @@ _BRIDGE_CHECKS = {
 }
 
 
-def _load_bridge(headers: list[str], row: list[Any]) -> Bridge:
+def _load_bridge(headers: list[str], row: list[Any], index: int) -> Bridge:
     data, missing = sheets.validate_row(headers, row, _BRIDGE_CHECKS)
 
     if missing:
-        raise ValueError(
-            f"Error loading bridge: {list(zip(headers, row))} (missing {missing})"
+        name: str = data["Name"] if "Name" in data else None
+
+        if name:
+            suffix = f"bridge '{name}'"
+        else:
+            suffix = f"row {index}"
+
+        message = sheets.validation_message(
+            missing, _BRIDGE_CHECKS  #  type: ignore [arg-type]
         )
+        raise ValueError(f"Error loading {suffix}\n{message}")
 
     # Stock bracket and demand are not present on the Sheet (not worth storing)
     tritium = Good(
@@ -65,7 +76,15 @@ async def load_bridges(lazy: bool = False) -> list[Bridge]:
     sheet = SPREADSHEET["Bridge"]
     headers: list[str] = sheet[0]
 
-    bridges = [_load_bridge(headers, row) for row in sheet[1::]]
+    bridges: list[Bridge] = []
+    for index, row in enumerate(sheet[1::], start=2):
+        try:
+            bridge = _load_bridge(headers, row, index)
+        except ValueError as error:
+            _LOGGER.error(error.args[0])
+        else:
+            bridges.append(bridge)
+
     return bridges
 
 

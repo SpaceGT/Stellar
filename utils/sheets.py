@@ -60,9 +60,12 @@ def validate_row(
 
         value = row[headers.index(key)]
 
-        # Treat empty strings as None if allowed
-        if allow_none and value == "":
-            loaded[key] = None
+        # Empty string means a blank cell
+        if value == "":
+            if allow_none:
+                loaded[key] = None
+            else:
+                invalid[key] = None
             continue
 
         if not strict:
@@ -79,6 +82,30 @@ def validate_row(
         loaded[key] = value
 
     return loaded, invalid
+
+
+def validation_message(
+    missing: dict[str, Any | None],
+    checks: dict[str, tuple[type, Pattern[str] | None]],
+) -> str:
+    """Generates a human-readable message on why a row failed validation."""
+    messages: list[str] = []
+
+    for key, value in missing.items():
+        received = f"{key}: {repr(value)}"
+
+        details: tuple[type | UnionType, Pattern[str] | None] = checks[key]
+        if typing.get_origin(details[0]) is UnionType:
+            expected = f"Expected {typing.get_args(details[0])[0].__name__} | None"
+        else:
+            expected = f"Expected {details[0].__name__}"  # type: ignore [union-attr]
+
+        if details[1] is not None:
+            expected += f" matching '{details[1].pattern}'"
+
+        messages.append(f"{received} ({expected})")
+
+    return "\n".join(messages)
 
 
 def load_credentials(credentials_path: Path, token_path: Path | None) -> Credentials:
