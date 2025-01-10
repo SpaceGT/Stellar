@@ -38,9 +38,8 @@ class Prompt(Modal, title="Rescue Info"):
         self, interaction: discord.Interaction[Client]
     ) -> None:
         """Open a modal where a resupply task can be requested."""
-        await interaction.response.defer(ephemeral=True)
-
         system_info = await edsm.system(self.system.value)
+
         if system_info is None:
             response = (
                 "## :x: Bad System :x:\nThe system "
@@ -51,7 +50,7 @@ class Prompt(Modal, title="Rescue Info"):
                 interaction.user.name,
                 self.system.value,
             )
-            await interaction.followup.send(response, ephemeral=True)
+            await interaction.response.send_message(response, ephemeral=True)
             return
 
         if self.tritium.value:
@@ -64,7 +63,7 @@ class Prompt(Modal, title="Rescue Info"):
                     interaction.user.name,
                     self.tritium.value,
                 )
-                await interaction.followup.send(response, ephemeral=True)
+                await interaction.response.send_message(response, ephemeral=True)
                 return
         else:
             tritium = None

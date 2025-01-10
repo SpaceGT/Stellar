@@ -32,7 +32,6 @@ class BridgeInfo(commands.Cog):
         cutoff: int | None = None,
     ) -> None:
         """Pretend a market update was sent."""
-        await interaction.response.defer(ephemeral=True)
 
         if cutoff is None:
             cutoff = 0
@@ -77,7 +76,7 @@ class BridgeInfo(commands.Cog):
             )
 
             file = File(bytes_io, "bridges.txt")
-            await interaction.followup.send(response, ephemeral=True, file=file)
+            await interaction.response.send_message(response, ephemeral=True, file=file)
 
         _LOGGER.info("Send bridge info to %s", interaction.user.name)
 

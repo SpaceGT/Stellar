@@ -78,8 +78,6 @@ class Stats(commands.GroupCog, group_name="statistics"):
         user: Member,
     ) -> None:
         "Get statistics for a specific user."
-        await interaction.response.defer(ephemeral=True)
-
         depots = filter(lambda x: x.owner_discord_id == user.id, DEPOT_SERVICE.carriers)
 
         main_guild = interaction.client.get_guild(DISCORD.main_guild_id)
@@ -120,7 +118,7 @@ class Stats(commands.GroupCog, group_name="statistics"):
 
         _LOGGER.info("Got stats on %s for %s", user.name, interaction.user.name)
 
-        await interaction.followup.send(response, ephemeral=True)
+        await interaction.response.send_message(response, ephemeral=True)
 
     @app_commands.command(  # type: ignore [arg-type]
         name="depot",
@@ -133,7 +131,6 @@ class Stats(commands.GroupCog, group_name="statistics"):
         depot: str,
     ) -> None:
         "Get statistics for a specific depot."
-        await interaction.response.defer(ephemeral=True)
 
         if len(depot) == 7:
             callsign = depot.upper()
@@ -144,7 +141,7 @@ class Stats(commands.GroupCog, group_name="statistics"):
 
         if carrier is None:
             response = f"## :x: Bad Depot :x:\nCould not find depot: `{depot}`\n"
-            await interaction.followup.send(response, ephemeral=True)
+            await interaction.response.send_message(response, ephemeral=True)
             return
 
         response = (
@@ -207,7 +204,7 @@ class Stats(commands.GroupCog, group_name="statistics"):
 
         _LOGGER.info("Got statistics on %s for %s", depot, interaction.user.name)
 
-        await interaction.followup.send(response, ephemeral=True)
+        await interaction.response.send_message(response, ephemeral=True)
 
     @depot.autocomplete("depot")
     async def depot_autocomplete(
@@ -228,8 +225,6 @@ class Stats(commands.GroupCog, group_name="statistics"):
         interaction: Interaction[Client],
     ) -> None:
         "Get general statistics on the initiative."
-        await interaction.response.defer(ephemeral=True)
-
         response = "# :mag: General Statistics :mag:\n"
 
         restocks = sorted(
@@ -291,7 +286,7 @@ class Stats(commands.GroupCog, group_name="statistics"):
 
         _LOGGER.info("Got general statistics for %s", interaction.user.name)
 
-        await interaction.followup.send(response, ephemeral=True)
+        await interaction.response.send_message(response, ephemeral=True)
 
 
 def main() -> None:

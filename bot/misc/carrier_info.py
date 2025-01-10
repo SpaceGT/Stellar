@@ -34,15 +34,13 @@ class CarrierInfo(commands.Cog):
         self, interaction: Interaction[Client], system: str, distance: int
     ) -> None:
         """Show depots nearest to a system of choice."""
-        await interaction.response.defer(ephemeral=True)
-
         system_info = await edsm.system(system)
 
         if system_info is None:
             response = (
                 f"## :x: Bad System :x:\nThe system `{system}` was not recognised!\n"
             )
-            await interaction.followup.send(response, ephemeral=True)
+            await interaction.response.send_message(response, ephemeral=True)
             return
 
         point = system_info.location
@@ -83,7 +81,7 @@ class CarrierInfo(commands.Cog):
             response = "## :ship: Nearby Depots :ship:"
 
             file = File(bytes_io, "depots.txt")
-            await interaction.followup.send(response, ephemeral=True, file=file)
+            await interaction.response.send_message(response, ephemeral=True, file=file)
 
         _LOGGER.info("Send carrier info to %s", interaction.user.name)
 

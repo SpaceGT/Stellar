@@ -68,7 +68,6 @@ class Market(commands.Cog):
         carrier: str | None = None,
     ) -> None:
         """Sync your carrier market with third party tools."""
-        await interaction.response.defer(ephemeral=True)
 
         assert interaction.client.application is not None
         is_owner = interaction.client.application.owner.id == interaction.user.id
@@ -88,7 +87,7 @@ class Market(commands.Cog):
                     "## :mag: Cannot Access Depot :mag:\n"
                     + f"Ensure `{carrier}` exists and that you are the registered owner."
                 )
-                await interaction.followup.send(response, ephemeral=True)
+                await interaction.response.send_message(response, ephemeral=True)
                 return
 
         else:
@@ -105,7 +104,7 @@ class Market(commands.Cog):
                     + "You have multiple registered depots.\n"
                     + "Please specify which one you wish to update."
                 )
-                await interaction.followup.send(response, ephemeral=True)
+                await interaction.response.send_message(response, ephemeral=True)
                 return
 
             if len(depots) == 0:
@@ -114,7 +113,7 @@ class Market(commands.Cog):
                     + "Ensure you have registered it with STAR!\n"
                     + f"<@{interaction.client.application.owner.id}> will be happy to assist you :)"
                 )
-                await interaction.followup.send(response, ephemeral=True)
+                await interaction.response.send_message(response, ephemeral=True)
                 return
 
             depot = depots[0]
@@ -172,7 +171,7 @@ class Market(commands.Cog):
                 "## :warning: EDDN Update Failed :warning:\n"
                 + f"If this issue persists please ping <@{interaction.client.application.owner.id}>"
             )
-            await interaction.followup.send(error_message, ephemeral=True)
+            await interaction.response.send_message(error_message, ephemeral=True)
             return
 
         response = (
@@ -191,7 +190,7 @@ class Market(commands.Cog):
                 + f"order{'s' if preserved != 1 else ''} from `{service.name}`)"
             )
 
-        await interaction.followup.send(response, ephemeral=True)
+        await interaction.response.send_message(response, ephemeral=True)
 
     @market.autocomplete("carrier")
     async def depot_autocomplete(
