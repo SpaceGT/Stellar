@@ -3,9 +3,12 @@
 import asyncio
 import logging
 import platform
+import signal
 import sys
 from argparse import ArgumentParser, Namespace
 from datetime import datetime, timedelta, timezone
+from types import FrameType
+from typing import Unpack
 
 import settings
 from bot import rescue, restock
@@ -38,6 +41,28 @@ def _load_args() -> Namespace:
         "--ephemeral", action="store_true", help="Exit instead of monitoring EDDN."
     )
     return parser.parse_args()
+
+
+def _shutdown(*_: Unpack[tuple[int, FrameType | None]]) -> None:
+    _LOGGER.debug("Recieved SIGINT")
+
+    if getattr(_shutdown, "handled", False):
+        _LOGGER.error("Skipping clean shutdown")
+        sys.exit(1)
+
+    async def close_discord() -> None:
+        _LOGGER.info("Queued Discord shutdown")
+        await CLIENT.setup_complete.wait()
+        await CLIENT.close()
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        _LOGGER.error("Could not find asyncio loop")
+    else:
+        loop.create_task(close_discord())
+
+    setattr(_shutdown, "handled", True)
 
 
 async def tick() -> None:
@@ -106,6 +131,8 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, _shutdown)
+
     if platform.system() == "Windows":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
