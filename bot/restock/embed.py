@@ -29,7 +29,6 @@ class EmbedBuilder:
     target: int
     distance: float
     image_url: str
-    legacy: bool = False
 
     @staticmethod
     def from_carrier(carrier: Carrier, image_url: str) -> "EmbedBuilder":
@@ -82,14 +81,7 @@ class EmbedBuilder:
             embed, "Travel", r"Distance: \[(.+)ly\]", float
         )
 
-        # Handle legacy embeds (that have the image hosted elsewhere)
-        legacy = embed.color != Colour.blue()
-        if legacy:
-            url = embed.thumbnail.url
-
-        # Handle modern embeds
-        else:
-            url = image_url or embed.thumbnail.url or None
+        url = image_url or embed.thumbnail.url or None
 
         if url is None:
             raise ValueError("Missing image URL")
@@ -105,7 +97,6 @@ class EmbedBuilder:
             target=target,
             distance=distance,
             image_url=url,
-            legacy=legacy,
         )
 
     @staticmethod
@@ -144,9 +135,7 @@ class EmbedBuilder:
         spansh_url = "https://spansh.co.uk/fleet-carrier"
 
         embed = (
-            DiscordEmbed(
-                colour=Colour.blue() if not self.legacy else Colour.dark_grey(),
-            )
+            DiscordEmbed(colour=Colour.blue())
             .add_field(
                 name="Destination",
                 value=(
