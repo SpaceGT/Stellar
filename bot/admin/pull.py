@@ -22,6 +22,7 @@ class Pull(commands.GroupCog, group_name="pull"):
 
         await interaction.response.defer(ephemeral=True)
         await DEPOT_SERVICE.pull()
+        await DEPOT_SERVICE.verify()
 
         response = (
             "## :cloud: Pull Complete :cloud:\n"
@@ -42,7 +43,7 @@ class Pull(commands.GroupCog, group_name="pull"):
         """Gets the latest depot market data from EDSM."""
 
         await interaction.response.defer(ephemeral=True)
-        await DEPOT_SERVICE.update_all()
+        await DEPOT_SERVICE.edsm_update()
 
         orders = sum(len(depot.market) for depot in DEPOT_SERVICE.depots)
 

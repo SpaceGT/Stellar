@@ -102,8 +102,10 @@ async def main() -> None:
     discord_future = asyncio.gather(CLIENT.start(settings.DISCORD.token))
     await CLIENT.setup_complete.wait()
 
+    await DEPOT_SERVICE.verify()
+
     if args.update:
-        await DEPOT_SERVICE.update_all()
+        await DEPOT_SERVICE.edsm_update()
 
     tick_task = await asynctick.run_daily(settings.SOFTWARE.tick, tick)
     if args.tick:

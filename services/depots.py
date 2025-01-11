@@ -210,7 +210,20 @@ class DepotService:
 
         return depots
 
-    async def update_all(self) -> None:
+    async def verify(self) -> None:
+        """
+        Check all depots for unprocessed changes.
+        Colours are calculated when the depot is pushed.
+        Depots with missing fields will not be loaded in the first place.
+        """
+
+        for carrier in self.carriers:
+            await RESTOCK_SERVICE.try_restock(carrier, push=False)
+
+        await RESTOCK_SERVICE.push()
+        await self.push()
+
+    async def edsm_update(self) -> None:
         """Update all depots from EDSM."""
 
         _LOGGER.info("Starting EDSM update")

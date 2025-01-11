@@ -154,6 +154,12 @@ class RestockService:
                 target = restock.tritium.required + delivered * -1
                 delivered = 0
 
+            if (
+                restock.tritium.delivered == delivered
+                and restock.tritium.required == target
+            ):
+                return
+
             await self._update_restock(depot, delivered, target)
 
             if delivered >= target * 0.8:
