@@ -248,12 +248,12 @@ class RestockService:
 
         if abort:
             restock.progress.stage = Stage.ABORTED
+            restock.tritium.sell_price = None
         else:
             restock.progress.stage = Stage.COMPLETE
+            restock.tritium.sell_price = carrier.tritium.stock.price or None
 
         restock.progress.end = datetime.now(timezone.utc)
-        restock.tritium.sell_price = carrier.tritium.stock.price or None
-
         await discord_restock.close_task(restock.message)
 
         _LOGGER.info(
