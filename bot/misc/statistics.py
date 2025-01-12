@@ -78,27 +78,32 @@ class Stats(commands.GroupCog, group_name="statistics"):
         user: Member,
     ) -> None:
         "Get statistics for a specific user."
-        depots = filter(lambda x: x.owner_discord_id == user.id, DEPOT_SERVICE.carriers)
+        depots = list(
+            filter(lambda x: x.owner_discord_id == user.id, DEPOT_SERVICE.carriers)
+        )
 
         main_guild = interaction.client.get_guild(DISCORD.main_guild_id)
         assert main_guild is not None
-        roles = [
-            main_guild.get_role(role_id)
-            for role_id in [
-                DISCORD.hauler_role_id,
-                DISCORD.rescue_role_id,
-                DISCORD.depot_role_id,
-            ]
-        ]
-        roles_not_none = [role for role in roles if role is not None]
-
-        response = (
-            "## :mag: User Statistics :mag:\n"
-            + f"{user.mention} ({' '.join([role.mention for role in roles_not_none])})\n"
+        roles = list(
+            filter(
+                None,
+                (
+                    user.get_role(role_id)
+                    for role_id in [
+                        DISCORD.hauler_role_id,
+                        DISCORD.rescue_role_id,
+                        DISCORD.depot_role_id,
+                    ]
+                ),
+            )
         )
 
-        for depot in depots:
-            response += f"**Depot:** `{depot}`\n"
+        response = f"## :mag: User Statistics :mag:\n{user.mention}"
+
+        if roles:
+            response += f" ({' '.join([role.mention for role in roles])})\n"
+        else:
+            response += "\n"
 
         rescues = self._search_rescues(user.id)
         if rescues:
@@ -114,9 +119,45 @@ class Stats(commands.GroupCog, group_name="statistics"):
             rank = (
                 f"  ({Stats._ordinal(position)})" if position <= _MENTION_LENGTH else ""
             )
-            response += f"**Refills:**  `{len(restocks)}`{rank}"
+            response += f"**Refills:**  `{len(restocks)}`{rank}\n"
 
-        _LOGGER.info("Got stats on '%s' for %s", user.name, interaction.user.name)
+        if depots:
+            active = []
+            inactive = []
+
+            for depot in depots:
+                if depot.active_depot:
+                    active.append(f"`{depot}`")
+                else:
+                    inactive.append(f"`{depot}`")
+
+            # Single depot accounts
+            if len(active + inactive) == 1:
+                response += f"**Depot:**  {(active + inactive)[0]}"
+                if inactive:
+                    response += " (Delisted)"
+
+            # Multi depot accounts
+            else:
+                if active:
+                    if inactive:
+                        response += "\n**Active Depots:**\n"
+                    else:
+                        response += "\n**Depots:**\n"
+
+                    response += "\n".join(active) + "\n"
+
+                if inactive:
+                    response += "\n**Delisted Depots:**\n"
+                    response += "\n".join(inactive) + "\n"
+
+        _LOGGER.info("Got stats on %s for %s", user.name, interaction.user.name)
+
+        if not any((roles, rescues, rescues, depots)):
+            response = (
+                "## :mag: User Statistics :mag:\n"
+                + f"{user.mention} has not contributed."
+            )
 
         await interaction.response.send_message(response, ephemeral=True)
 
@@ -147,10 +188,10 @@ class Stats(commands.GroupCog, group_name="statistics"):
         response = (
             "# :mag: Depot Statistics :mag:\n"
             + "## Core :construction_site:\n"
-            + f"**Depot: **  `[{carrier.name}] {carrier.display_name}`\n"
-            + f"**System:** `{carrier.system}`\n"
-            + f"**Owner:** <@{carrier.owner_discord_id}>\n"
-            + f"**Update:** <t:{int(carrier.last_update.timestamp())}:R>\n"
+            + f"**Depot:**  `[{carrier.name}] {carrier.display_name}`\n"
+            + f"**System:**  `{carrier.system}`\n"
+            + f"**Owner:**  <@{carrier.owner_discord_id}>\n"
+            + f"**Update:**  <t:{int(carrier.last_update.timestamp())}:R>\n"
         )
 
         if carrier.tritium:
@@ -165,17 +206,17 @@ class Stats(commands.GroupCog, group_name="statistics"):
                 "## Market :chart_with_upwards_trend:\n"
                 + f"**Tritium:**  `{good.quantity:,}t`\n"
                 + f"**Price:**  `{good.price:,}cr/t`\n"
-                + f"**Market:** `{market}`\n"
+                + f"**Market:**  `{market}`\n"
             )
         else:
             response += "**Market:** `Not Stocked`\n"
 
         response += (
             "## Technical :robot:\n"
-            + f"**Identifier:** `{carrier.market_id}`\n"
-            + f"**Reserve:** `{carrier.reserve_tritium:,}t`\n"
-            + f"**Allocated: ** `{carrier.allocated_space:,}t`\n"
-            + f"**Syncing: ** `{carrier.inara_poll}`\n"
+            + f"**Identifier:**  `{carrier.market_id}`\n"
+            + f"**Reserve:**  `{carrier.reserve_tritium:,}t`\n"
+            + f"**Allocated:**  `{carrier.allocated_space:,}t`\n"
+            + f"**Syncing:**  `{carrier.inara_poll}`\n"
         )
 
         restocks = sorted(
@@ -197,9 +238,9 @@ class Stats(commands.GroupCog, group_name="statistics"):
 
             response += (
                 "## Refills :ship:\n"
-                + f"**Number:** `{len(restocks):,}`\n"
-                + f"**Tonnage:** `{sum(restock.tritium.delivered for restock in restocks):,}t`\n"
-                + f"**Interval:** `{average.days:,} days`\n"
+                + f"**Number:**  `{len(restocks):,}`\n"
+                + f"**Tonnage:**  `{sum(restock.tritium.delivered for restock in restocks):,}t`\n"
+                + f"**Interval:**  `{average.days:,} days`\n"
             )
 
         _LOGGER.info("Got statistics on '%s' for %s", depot, interaction.user.name)
@@ -240,9 +281,9 @@ class Stats(commands.GroupCog, group_name="statistics"):
 
             response += (
                 "## Refills :ship:\n"
-                + f"**Number:** `{len(restocks):,}`\n"
-                + f"**Tonnage:** `{sum(restock.tritium.delivered for restock in restocks):,}t`\n"
-                + f"**Interval:** `{average.days:,} days`\n"
+                + f"**Number:**  `{len(restocks):,}`\n"
+                + f"**Tonnage:**  `{sum(restock.tritium.delivered for restock in restocks):,}t`\n"
+                + f"**Interval:**  `{average.days:,} days`\n"
             )
 
         rescues = sorted(
@@ -258,8 +299,8 @@ class Stats(commands.GroupCog, group_name="statistics"):
 
             response += (
                 "## Rescues :helicopter:\n"
-                + f"**Number:** `{len(rescues):,}`\n"
-                + f"**Interval:** `{average.days:,} days`\n"
+                + f"**Number:**  `{len(rescues):,}`\n"
+                + f"**Interval:**  `{average.days:,} days`\n"
             )
 
         response += (
