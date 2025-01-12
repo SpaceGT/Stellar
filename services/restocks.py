@@ -190,7 +190,7 @@ class RestockService:
         )
 
         _LOGGER.info(
-            "Updated restock task for %s with %s/%s tritium",
+            "Updated restock task for '%s' with %s/%s tritium",
             carrier,
             restock.tritium.delivered,
             restock.tritium.required,
@@ -227,7 +227,7 @@ class RestockService:
         )
 
         _LOGGER.info(
-            "Created restock task for %s requiring %s tritium.",
+            "Created restock task for '%s' requiring %s tritium.",
             carrier,
             tritium["required"],
         )
@@ -257,7 +257,7 @@ class RestockService:
         await discord_restock.close_task(restock.message)
 
         _LOGGER.info(
-            "Closed restock task for %s with %s/%s tritium",
+            "Closed restock task for '%s' with %s/%s tritium",
             carrier,
             restock.tritium.delivered,
             restock.tritium.required,

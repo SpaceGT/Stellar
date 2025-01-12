@@ -100,7 +100,7 @@ class CarrierInfo(commands.Cog):
         try:
             systems = await asyncio.wait_for(spansh.predict_system(current), timeout=3)
         except TimeoutError:
-            _LOGGER.warning("Could not find system suggestions for %s", current)
+            _LOGGER.warning("Could not find system suggestions for '%s'", current)
         else:
             choices = [
                 Choice(name=str(system), value=str(system)) for system in systems[:5]

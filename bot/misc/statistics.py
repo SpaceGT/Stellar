@@ -116,7 +116,7 @@ class Stats(commands.GroupCog, group_name="statistics"):
             )
             response += f"**Refills:**  `{len(restocks)}`{rank}"
 
-        _LOGGER.info("Got stats on %s for %s", user.name, interaction.user.name)
+        _LOGGER.info("Got stats on '%s' for %s", user.name, interaction.user.name)
 
         await interaction.response.send_message(response, ephemeral=True)
 
@@ -202,7 +202,7 @@ class Stats(commands.GroupCog, group_name="statistics"):
                 + f"**Interval:** `{average.days:,} days`\n"
             )
 
-        _LOGGER.info("Got statistics on %s for %s", depot, interaction.user.name)
+        _LOGGER.info("Got statistics on '%s' for %s", depot, interaction.user.name)
 
         await interaction.response.send_message(response, ephemeral=True)
 
