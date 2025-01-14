@@ -19,33 +19,35 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _log_tritium(depot: Depot) -> None:
-    if not depot.tritium:
+    if depot.tritium:
+        if isinstance(depot, Carrier):
+            if depot.tritium.demand.quantity > 0:
+                order_type = "buying"
+                market = depot.tritium.demand
+            else:
+                order_type = "selling"
+                market = depot.tritium.stock
+        else:
+            order_type = "selling"
+            market = depot.tritium.stock
+
+        _LOGGER.info(
+            "'%s' in '%s' is %s %s tonnes of tritium at %s cr/t (%s other orders)",
+            str(depot),
+            depot.system.name,
+            order_type,
+            market.quantity,
+            market.price,
+            len(depot.market) - 1,
+        )
+
+    else:
         _LOGGER.info(
             "'%s' in '%s' does not trade tritium (%s other orders)",
             str(depot),
             depot.system.name,
             len(depot.market),
         )
-
-        return
-
-    if depot.tritium.stock.quantity > 0:
-        order_type = "selling"
-        market = depot.tritium.stock
-
-    else:
-        order_type = "buying"
-        market = depot.tritium.demand
-
-    _LOGGER.info(
-        "'%s' in '%s' is %s %s tonnes of tritium at %s cr/t (%s other orders)",
-        str(depot),
-        depot.system.name,
-        order_type,
-        market.quantity,
-        market.price,
-        len(depot.market) - 1,
-    )
 
 
 async def update_depot(

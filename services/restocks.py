@@ -243,7 +243,6 @@ class RestockService:
         restock = self.restocks.find(callsign=carrier.name)
         carrier.restock_status = None
 
-        assert carrier.tritium
         assert restock
 
         if abort:
@@ -251,7 +250,11 @@ class RestockService:
             restock.tritium.sell_price = None
         else:
             restock.progress.stage = Stage.COMPLETE
-            restock.tritium.sell_price = carrier.tritium.stock.price or None
+
+            if carrier.tritium and carrier.tritium.stock.price > 0:
+                restock.tritium.sell_price = carrier.tritium.stock.price
+            else:
+                restock.tritium.sell_price = None
 
         restock.progress.end = datetime.now(timezone.utc)
         await discord_restock.close_task(restock.message)

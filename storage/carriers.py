@@ -186,15 +186,15 @@ async def push_carriers(carriers: list[Carrier]) -> None:
             tritium = carrier.tritium
 
             if tritium:
-                if tritium.stock.quantity > 0:
-                    row[headers.index("Tonnage")] = tritium.stock.quantity
-                    row[headers.index("Price")] = tritium.stock.price
-                    row[headers.index("Market")] = "Selling"
-
                 if tritium.demand.quantity > 0:
                     row[headers.index("Tonnage")] = tritium.demand.quantity
                     row[headers.index("Price")] = tritium.demand.price
                     row[headers.index("Market")] = "Buying"
+
+                else:
+                    row[headers.index("Tonnage")] = tritium.stock.quantity
+                    row[headers.index("Price")] = tritium.stock.price
+                    row[headers.index("Market")] = "Selling"
 
             else:
                 row[headers.index("Tonnage")] = ""

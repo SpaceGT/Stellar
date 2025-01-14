@@ -93,21 +93,24 @@ async def commodity(
     )
 
     if market_tritium:
+        if market_tritium.demand.quantity > 0:
+            order = (
+                "buying",
+                market_tritium.demand.quantity,
+                market_tritium.demand.price,
+            )
+        else:
+            order = (
+                "selling",
+                market_tritium.stock.quantity,
+                market_tritium.stock.price,
+            )
+
         _LOGGER.info(
             "Sent EDDN update for '%s' %s %s tonnes of tritium at %s cr/t (%s other orders)",
             station,
-            "selling" if market_tritium.stock.quantity > 0 else "buying",
-            (
-                market_tritium.stock.quantity
-                if market_tritium.stock.quantity > 0
-                else market_tritium.demand.quantity
-            ),
-            (
-                market_tritium.stock.price
-                if market_tritium.stock.quantity > 0
-                else market_tritium.demand.price
-            ),
-            len(market) - 1,
+            *order,
+            len(market) - 1
         )
     else:
         _LOGGER.info(

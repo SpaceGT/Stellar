@@ -115,6 +115,8 @@ async def write_task(
     galaxy_map: BytesIO,
 ) -> int:
     """Write a task to resupply a given depot."""
+    assert carrier.tritium
+    assert carrier.tritium.demand.quantity == 0
 
     task_forum = _get_forum()
 
