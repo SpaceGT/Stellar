@@ -17,9 +17,9 @@ _LOGGER = logging.getLogger(__name__)
 _CARRIER_CHECKS = {
     "ID": (str, re.compile(r"^[A-Z0-9]{3}-[A-Z0-9]{3}$", re.MULTILINE)),
     "Name": (str, None),
-    "Tonnage": (int, None),
-    "Price": (int, None),
-    "Market": (str, re.compile(r"^Buying|Selling$", re.MULTILINE)),
+    "Tonnage": (int | None, None),
+    "Price": (int | None, None),
+    "Market": (str, re.compile(r"^Buying|Selling|Unlisted$", re.MULTILINE)),
     "Update": (int, None),
     "Current System": (str, None),
     "X": (float, None),
@@ -36,13 +36,65 @@ _CARRIER_CHECKS = {
 }
 
 
+def _load_market(
+    type_: str,
+    quantity: int | None,
+    price: int | None,
+    error_prefix: str = "",
+) -> list[Good]:
+    market: list[Good] = []
+    if type_ == "Unlisted":
+        if set([quantity, price]) != set([None]):
+            message = "Market is 'Unlisted' but contains tritium!\n"
+
+            if quantity is not None:
+                message += f"Tonnage: {quantity} (Expected None)\n"
+
+            if price is not None:
+                message += f"Price: {price} (Expected None)\n"
+
+            raise ValueError(error_prefix + message[:-1])
+
+    else:
+        if None in (quantity, price):
+            message = f"Market is '{type_}' but missing data!\n"
+
+            if quantity is None:
+                message += "Tonnage: None (Expected int)\n"
+
+            if price is None:
+                message += "Price: None (Expected int)\n"
+
+            raise ValueError(error_prefix + message[:-1])
+
+        assert quantity is not None
+        assert price is not None
+
+        info = {
+            "price": price,
+            "quantity": quantity,
+            "bracket": stock_bracket(quantity),
+        }
+        market.append(
+            Good(
+                "tritium",
+                info if type_ == "Selling" else {},
+                info if type_ == "Buying" else {},
+            )
+        )
+
+    return market
+
+
 def _load_carrier(headers: list[str], row: list[Any], index: int) -> Carrier | None:
-    data, missing = sheets.validate_row(headers, row, _CARRIER_CHECKS)
+    data, missing = sheets.validate_row(
+        headers, row, _CARRIER_CHECKS  # type: ignore [arg-type]
+    )
+
+    callsign: str = data["ID"] if "ID" in data else "MISSING"
+    name: str = data["Name"] if "Name" in data else "MISSING"
 
     if missing:
-        callsign: str = data["ID"] if "ID" in data else "MISSING"
-        name: str = data["Name"] if "Name" in data else "MISSING"
-
         if "MISSING" == callsign == name:
             suffix = f"row {index}"
         else:
@@ -53,19 +105,22 @@ def _load_carrier(headers: list[str], row: list[Any], index: int) -> Carrier | N
             _LOGGER.warning("Ignoring %s (inactive)", suffix)
             return None
 
-        message = sheets.validation_message(missing, _CARRIER_CHECKS)
+        message = sheets.validation_message(
+            missing, _CARRIER_CHECKS  # type: ignore [arg-type]
+        )
         raise ValueError(f"Cannot load {suffix}\n{message}")
 
-    market = {
-        "price": data["Price"],
-        "quantity": data["Tonnage"],
-        "bracket": stock_bracket(data["Tonnage"]),
-    }
-    tritium = Good(
-        "tritium",
-        market if data["Market"] == "Selling" else {},
-        market if data["Market"] == "Buying" else {},
-    )
+    error_prefix = f"Cannot load carrier '[{callsign}] {name}'\n"
+    try:
+        market = _load_market(
+            data["Market"], data["Tonnage"], data["Price"], error_prefix
+        )
+    except ValueError as error:
+        if data["Active"]:
+            raise error
+
+        _LOGGER.warning("Ignoring '[%s] %s' (inactive)", callsign, name)
+        return None
 
     deploy_location = Point3D(data["X"], data["Y"], data["Z"])
 
@@ -85,7 +140,7 @@ def _load_carrier(headers: list[str], row: list[Any], index: int) -> Carrier | N
         display_name=data["Name"],
         owner_discord_id=data["Contact"],
         reserve_tritium=data["Reserve"],
-        market=[tritium],
+        market=market,
         market_id=data["Market ID"],
         inara_url=data["URL"],
         last_update=update,
@@ -142,7 +197,9 @@ async def push_carriers(carriers: list[Carrier]) -> None:
                     row[headers.index("Market")] = "Buying"
 
             else:
-                row[headers.index("Tonnage")] = 0
+                row[headers.index("Tonnage")] = ""
+                row[headers.index("Price")] = ""
+                row[headers.index("Market")] = "Unlisted"
 
             row[headers.index("Update")] = int(carrier.last_update.timestamp())
             row[headers.index("Current System")] = carrier.system.name

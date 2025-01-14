@@ -16,8 +16,8 @@ _LOGGER = logging.getLogger(__name__)
 
 _BRIDGE_CHECKS = {
     "Name": (str, None),
-    "Tonnage": (int, None),
-    "Sell Price": (int, None),
+    "Tonnage": (int | None, None),
+    "Sell Price": (int | None, None),
     "Market ID": (int, None),
     "Update": (int, None),
     "System": (str, None),
@@ -29,7 +29,9 @@ _BRIDGE_CHECKS = {
 
 
 def _load_bridge(headers: list[str], row: list[Any], index: int) -> Bridge:
-    data, missing = sheets.validate_row(headers, row, _BRIDGE_CHECKS)
+    data, missing = sheets.validate_row(
+        headers, row, _BRIDGE_CHECKS  # type: ignore [arg-type]
+    )
 
     if missing:
         name: str = data["Name"] if "Name" in data else None
@@ -40,28 +42,39 @@ def _load_bridge(headers: list[str], row: list[Any], index: int) -> Bridge:
             suffix = f"row {index}"
 
         message = sheets.validation_message(
-            missing, _BRIDGE_CHECKS  #  type: ignore [arg-type]
+            missing, _BRIDGE_CHECKS  # type: ignore [arg-type]
         )
         raise ValueError(f"Error loading {suffix}\n{message}")
 
-    # Stock bracket and demand are not present on the Sheet (not worth storing)
-    tritium = Good(
-        "tritium",
-        {
+    if (
+        None in (data["Sell Price"], data["Tonnage"])
+        and data["Sell Price"] != data["Tonnage"]
+    ):
+        message = (
+            f"Error loading bridge '{data['Name']}'\n"
+            + "Ambiguous market - 'Tonnage' and 'Sell Price' must share types!\n"
+            + f'Tonnage: {data["Tonnage"]} (Expected int | None)\n'
+            + f'Sell Price: {data["Sell Price"]} (Expected int | None)'
+        )
+
+        raise ValueError(message)
+
+    market: list[Good] = []
+    if None not in (data["Sell Price"], data["Tonnage"]):
+        info = {
             "price": data["Sell Price"],
             "quantity": data["Tonnage"],
-            "bracket": 0,
-        },
-        {},
-    )
-    location = Point3D(data["X"], data["Y"], data["Z"])
+            "bracket": 0,  # Not worth storing on sheet
+        }
+        market.append(Good("tritium", info, {}))  # Demand is not worth storing on sheet
 
+    location = Point3D(data["X"], data["Y"], data["Z"])
     update = datetime.fromtimestamp(data["Update"], timezone.utc)
 
     return Bridge(
         name=data["Name"],
         system=System(data["System"], location),
-        market=[tritium],
+        market=market,
         market_id=data["Market ID"],
         inara_url=data["URL"],
         last_update=update,
@@ -108,7 +121,8 @@ async def push_bridges(bridges: list[Bridge]) -> None:
                 row[headers.index("Sell Price")] = tritium.stock.price
 
             else:
-                row[headers.index("Tonnage")] = 0
+                row[headers.index("Tonnage")] = ""
+                row[headers.index("Sell Price")] = ""
 
             row[headers.index("Update")] = int(bridge.last_update.timestamp())
 
