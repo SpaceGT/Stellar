@@ -1,6 +1,7 @@
 """Gets information on the Colonia Bridge."""
 
 import logging
+from datetime import datetime, timezone
 from io import BytesIO
 from typing import Any
 
@@ -13,7 +14,7 @@ from settings import DISCORD
 from utils import table
 
 _LOGGER = logging.getLogger(__name__)
-_LENGTH = 25
+_LENGTH = 20
 
 
 class BridgeInfo(commands.Cog):
@@ -48,13 +49,16 @@ class BridgeInfo(commands.Cog):
             reverse=True,
         )
 
-        bridge_matrix: list[list[Any]] = [["Name", "System", "Stock", "Price"]]
+        bridge_matrix: list[list[Any]] = [
+            ["Name", "System", "Stock", "Price", "Update"]
+        ]
         bridge_matrix += [
             [
                 bridge.name,
                 bridge.system.name,
                 bridge.tritium.stock.quantity,
                 bridge.tritium.stock.price,
+                datetime.now(timezone.utc) - bridge.last_update,
             ]
             for bridge in bridges[:_LENGTH]
             if bridge.tritium

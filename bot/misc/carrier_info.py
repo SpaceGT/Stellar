@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from io import BytesIO
 from typing import Any
 
@@ -16,7 +17,7 @@ from settings import DISCORD
 from utils import table
 
 _LOGGER = logging.getLogger(__name__)
-_LENGTH = 25
+_LENGTH = 20
 
 
 class CarrierInfo(commands.Cog):
@@ -59,7 +60,7 @@ class CarrierInfo(commands.Cog):
         )
 
         carrier_matrix: list[list[Any]] = [
-            ["Callsign", "Name", "System", "Distance", "Stock", "Price"]
+            ["Callsign", "Name", "System", "Distance", "Stock", "Price", "Update"]
         ]
         carrier_matrix += [
             [
@@ -69,6 +70,7 @@ class CarrierInfo(commands.Cog):
                 round(carrier.deploy_system.location.distance(point)),
                 carrier.tritium.stock.quantity,  # type: ignore [union-attr]
                 carrier.tritium.stock.price,  # type: ignore [union-attr]
+                datetime.now(timezone.utc) - carrier.last_update,
             ]
             for carrier in carriers[:_LENGTH]
         ]

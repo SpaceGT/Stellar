@@ -1,6 +1,31 @@
 """Converts a matrix to a table."""
 
+from datetime import timedelta
 from typing import Any
+
+
+def _format_timedelta(time: timedelta) -> str:
+    seconds = int(time.total_seconds())
+    days = time.days
+
+    messages = [
+        (seconds < 10, "just now"),
+        (seconds < 60, f"{seconds} seconds ago"),
+        (seconds < 120, "a minute ago"),
+        (seconds < 3600, f"{seconds // 60} minutes ago"),
+        (seconds < 7200, "an hour ago"),
+        (seconds < 86400, f"{seconds // 3600} hours ago"),
+        (days == 1, "Yesterday"),
+        (days < 7, f"{days} days ago"),
+        (days < 14, "a week ago"),
+        (days < 31, f"{days // 7} weeks ago"),
+        (days < 62, "a month ago"),
+        (days < 365, f"{days // 30} months ago"),
+        (days < 730, "a year ago"),
+        (True, f"{days // 365} years ago"),
+    ]
+
+    return next(message for condition, message in messages if condition)
 
 
 def _column_widths(matrix: list[list[Any]], padding: int) -> list[int]:
@@ -24,6 +49,9 @@ def _column_widths(matrix: list[list[Any]], padding: int) -> list[int]:
 def _format(value: object) -> str:
     if isinstance(value, (int, float)):
         return f"{value:,}"
+
+    if isinstance(value, timedelta):
+        return _format_timedelta(value)
 
     return str(value).title()
 
