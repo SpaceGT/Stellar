@@ -107,7 +107,9 @@ class Slash(commands.GroupCog, group_name="restock"):
 
         depot = DEPOT_SERVICE.carriers.find(callsign=restock.carrier[0])
         assert depot
+
         await RESTOCK_SERVICE.close_restock(depot, abort=bool(abort.value))
+        await DEPOT_SERVICE.push()  # Not done by RESTOCK_SERVICE
 
         response = "## :tools: Task Closed :tools:\n"
 
