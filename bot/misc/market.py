@@ -118,6 +118,20 @@ class Market(commands.Cog):
 
             depot = depots[0]
 
+        market_warning = ["## :police_car: Invalid Market :police_car:"]
+        if not price:
+            market_warning.append("Your price defeats the purpose of this order.")
+
+        if market.value == _MarketChoice.BUYING and not tritium:
+            market_warning.append(
+                "You are trying to buy tritium without buying any tritium."
+            )
+
+        if len(market_warning) > 1:
+            response = "\n".join(market_warning)
+            await interaction.response.send_message(response, ephemeral=True)
+            return
+
         new_market: list[Good]
         match service.value:
             case _ServiceChoice.EDSM:

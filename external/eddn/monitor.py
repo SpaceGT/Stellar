@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import re
 import zlib
 from asyncio import Task
 from datetime import datetime, timedelta, timezone
@@ -16,6 +17,7 @@ from common import Good
 from utils.events import AsyncEvent
 
 _LOGGER = logging.getLogger(__name__)
+_CARRIER = re.compile(r"^[A-Z0-9]{3}-[A-Z0-9]{3}$", re.MULTILINE)
 
 
 class Monitor:
@@ -115,26 +117,65 @@ class Monitor:
             )
 
     async def _commodity(self, data: dict[str, Any]) -> None:
+        is_carrier = _CARRIER.match(data["message"]["stationName"])
+
+        market = [
+            Good(
+                commodity["name"],
+                {
+                    "price": commodity["buyPrice"],
+                    "quantity": commodity["stock"],
+                    "bracket": commodity["stockBracket"],
+                },
+                {
+                    "price": commodity["sellPrice"],
+                    "quantity": commodity["demand"],
+                    "bracket": commodity["demandBracket"],
+                },
+                commodity["meanPrice"],
+            )
+            for commodity in data["message"]["commodities"]
+        ]
+
+        # Simple market validation
+        message = [
+            f"Ignoring bad commodity update for '{data["message"]["stationName"]}'"
+        ]
+        for good in market:
+            issues = []
+
+            buying = any((good.demand.quantity, good.demand.price))
+            selling = any((good.stock.quantity, good.stock.price))
+
+            if buying:
+                if not good.demand.price:
+                    issues.append("Buying for free.")
+
+                if is_carrier:
+                    if not good.demand.quantity:
+                        issues.append("Buying without demand.")
+
+            if selling:
+                if not good.stock.price:
+                    issues.append("Selling for free.")
+
+            if buying and selling and is_carrier:
+                issues.append("Buying and selling simultaneously.")
+
+            if not (buying or selling):
+                issues.append("Trading but not buying or selling.")
+
+            if issues:
+                message.extend([f"{good.name} - {len(issues)} issue(s)"] + issues)
+
+        if len(message) > 1:
+            _LOGGER.warning("\n".join(message))
+            return
+
         await self.commodity.fire(
             data["message"]["stationName"],
             data["message"]["systemName"],
-            [
-                Good(
-                    commodity["name"],
-                    {
-                        "price": commodity["buyPrice"],
-                        "quantity": commodity["stock"],
-                        "bracket": commodity["stockBracket"],
-                    },
-                    {
-                        "price": commodity["sellPrice"],
-                        "quantity": commodity["demand"],
-                        "bracket": commodity["demandBracket"],
-                    },
-                    commodity["meanPrice"],
-                )
-                for commodity in data["message"]["commodities"]
-            ],
+            market,
             datetime.fromisoformat(
                 data["message"]["timestamp"].removesuffix("Z"),
             ).replace(tzinfo=timezone.utc),
