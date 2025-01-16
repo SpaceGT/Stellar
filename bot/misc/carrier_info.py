@@ -45,6 +45,7 @@ class CarrierInfo(commands.Cog):
             return
 
         point = system_info.location
+        assert point  # EDSM always returns location
 
         carriers = [
             carrier
@@ -52,11 +53,13 @@ class CarrierInfo(commands.Cog):
             if carrier.tritium
             and carrier.active_depot
             and carrier.tritium.stock.quantity > 0
-            and carrier.deploy_system.name == carrier.system.name
-            and carrier.deploy_system.location.distance(point) <= distance
+            and carrier.system == carrier.deploy_system
+            and carrier.system.location
+            and carrier.system.location.distance(point) <= distance
         ]
         carriers = sorted(
-            carriers, key=lambda x: x.deploy_system.location.distance(point)
+            carriers,
+            key=lambda x: x.system.location.distance(point),  # type: ignore [union-attr]
         )
 
         carrier_matrix: list[list[Any]] = [
@@ -67,7 +70,7 @@ class CarrierInfo(commands.Cog):
                 carrier.name,
                 carrier.display_name,
                 carrier.system.name,
-                round(carrier.deploy_system.location.distance(point)),
+                round(carrier.system.location.distance(point)),  # type: ignore [union-attr]
                 carrier.tritium.stock.quantity,  # type: ignore [union-attr]
                 carrier.tritium.stock.price,  # type: ignore [union-attr]
                 datetime.now(timezone.utc) - carrier.last_update,

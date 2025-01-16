@@ -27,6 +27,7 @@ class BaseEmbedBuilder:
     @staticmethod
     def from_base_rescue(rescue: Rescue, image_url: str) -> "BaseEmbedBuilder":
         """Create an instance from a Rescue Task object."""
+        assert rescue.system.location
 
         return BaseEmbedBuilder(
             client_id=rescue.client,

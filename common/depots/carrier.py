@@ -55,7 +55,7 @@ class Carrier(Depot):
         if self.restock_status == Stage.PENDING:
             return Colour.BLUE
 
-        if self.system.name != self.deploy_system.name:
+        if self.system != self.deploy_system:
             return Colour.PURPLE
 
         if self.tritium and self.tritium.demand.quantity > 0:

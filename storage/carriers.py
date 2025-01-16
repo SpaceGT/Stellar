@@ -127,7 +127,7 @@ def _load_carrier(headers: list[str], row: list[Any], index: int) -> Carrier | N
     if data["Current System"] == data["Deploy System"]:
         current_location = Point3D(data["X"], data["Y"], data["Z"])
     else:
-        current_location = Point3D(0, 0, 0)  # Not worth storing on sheet
+        current_location = None  # Not worth storing on sheet
 
     update = datetime.fromtimestamp(data["Update"], timezone.utc)
 

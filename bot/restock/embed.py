@@ -33,8 +33,8 @@ class EmbedBuilder:
     @staticmethod
     def from_carrier(carrier: Carrier, image_url: str) -> "EmbedBuilder":
         """Create an instance from a Carrier object."""
-        if carrier.tritium is None:
-            raise ValueError
+        assert carrier.tritium
+        assert carrier.system.location
 
         return EmbedBuilder(
             depot=str(carrier),

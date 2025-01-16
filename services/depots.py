@@ -193,9 +193,17 @@ class DepotService:
         if not depot or timestamp < depot.last_update:
             return
 
-        if isinstance(depot, Carrier) and depot.system.name != system:
+        if isinstance(depot, Carrier) and depot.system != system:
             system_data = await edsm.system(system)
-            assert system_data
+
+            if not system_data:
+                system_data = System(system, None)
+
+                if depot.active_depot:
+                    _LOGGER.warning(
+                        "System '%s' for '%s' is not on EDSM", system, str(depot)
+                    )
+
         else:
             system_data = depot.system
 
@@ -269,7 +277,7 @@ class DepotService:
                 _LOGGER.error("'%s' caused an error when updating.", str(carrier))
                 continue
 
-            if isinstance(carrier, Carrier) and carrier.system.name != system_name:
+            if isinstance(carrier, Carrier) and carrier.system != system_name:
                 system = await edsm.system(system_name)
                 assert system
             else:

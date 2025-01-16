@@ -80,9 +80,9 @@ async def write_task(
     galaxy_map: BytesIO,
 ) -> int:
     """Write a task to rescue a given user."""
+    assert system.location
 
     task_forum = _get_forum()
-
     user = await task_forum.guild.fetch_member(client)
 
     embed: BaseEmbedBuilder

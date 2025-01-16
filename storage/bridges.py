@@ -34,7 +34,7 @@ def _load_bridge(headers: list[str], row: list[Any], index: int) -> Bridge:
     )
 
     if missing:
-        name: str = data["Name"] if "Name" in data else None
+        name: str | None = data["Name"] if "Name" in data else None
 
         if name:
             suffix = f"bridge '{name}'"

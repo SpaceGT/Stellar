@@ -167,6 +167,8 @@ class RescueService:
         tritium: int | None = None,
     ) -> None:
         """Create a new rescue task."""
+        if system.location is None:
+            raise ValueError(f"Cannot find location for '{system}'")
 
         with galaxy.render([system.location]) as gal_map:
             message_id = await discord_rescue.write_task(

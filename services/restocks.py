@@ -126,17 +126,19 @@ class RestockService:
     async def try_restock(self, depot: Carrier, push: bool = True) -> None:
         """Create or update a restock task for a carrier if required."""
 
-        if not depot.active_depot:
-            return
-
-        if not depot.tritium:
-            return
-
-        if depot.tritium.demand.quantity > 0:
+        if (
+            not depot.active_depot
+            or not depot.tritium
+            or depot.tritium.demand.quantity > 0
+        ):
             return
 
         if depot.restock_status is None:
-            if depot.tritium.stock.quantity > depot.reserve_tritium:
+            if (
+                depot.system.location is None
+                or depot.system != depot.deploy_system
+                or depot.tritium.stock.quantity > depot.reserve_tritium
+            ):
                 return
 
             await self._new_restock(depot)
@@ -198,6 +200,7 @@ class RestockService:
 
     async def _new_restock(self, carrier: Carrier) -> None:
         assert carrier.tritium
+        assert carrier.system.location
 
         tritium = {
             "required": carrier.allocated_space - carrier.tritium.stock.quantity,

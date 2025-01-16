@@ -9,7 +9,6 @@ from common import System
 from common.enums import Stage
 from common.tasks import CarrierRescue, Rescue, ShipRescue
 from utils import sheets
-from utils.points import Point3D
 
 from .sheet import SPREADSHEET
 
@@ -54,16 +53,13 @@ def _load_rescue(headers: list[str], row: list[Any], index: int) -> Rescue:
         "stage": Stage(data["State"]),
     }
 
-    # 3D Position is not present on the Sheet (not worth storing)
-    location = Point3D(0, 0, 0)
-
     if data["Tritium"] is None:
         return ShipRescue(
             client=data["Client"],
             message=data["Message"],
             progress=progress,
             rescuers=rescuers,
-            system=System(data["System"], location),
+            system=System(data["System"], None),
         )
 
     return CarrierRescue(
@@ -71,7 +67,7 @@ def _load_rescue(headers: list[str], row: list[Any], index: int) -> Rescue:
         message=data["Message"],
         progress=progress,
         rescuers=rescuers,
-        system=System(data["System"], location),
+        system=System(data["System"], None),
         tritium=data["Tritium"],
     )
 

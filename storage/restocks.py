@@ -65,16 +65,13 @@ def _load_restock(headers: list[str], row: list[Any], index: int) -> Restock:
         "stage": Stage(data["State"]),
     }
 
-    # 3D Position is not present on the Sheet (not worth storing)
-    location = Point3D(0, 0, 0)
-
     return Restock(
         carrier=(data["ID"], data["Name"]),
         haulers=haulers,
         message=data["Message"],
         tritium=tritium,
         progress=progress,
-        system=System(data["System"], location),
+        system=System(data["System"], None),
     )
 
 
