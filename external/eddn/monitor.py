@@ -139,7 +139,7 @@ class Monitor:
 
         # Simple market validation
         message = [
-            f"Ignoring bad commodity update for '{data["message"]["stationName"]}'"
+            f"Ignoring bad commodity update for '{data['message']['stationName']}'"
         ]
         for good in market:
             issues = []
