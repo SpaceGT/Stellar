@@ -16,5 +16,5 @@ Here are just some of the things Stellar does:
 - Handles rescue tasks for stranded players.
 - Sends market data back to EDDN.
 - Provides infromation on previous tasks.
-- Summarisies Colonia Bridge tritium levels.
+- Summarises Colonia Bridge tritium levels.
 - Finds the closest depots to a system.
