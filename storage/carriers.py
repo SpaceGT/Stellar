@@ -32,7 +32,6 @@ _CARRIER_CHECKS = {
     "URL": (str, re.compile(r"^https:\/\/inara\.cz\/station\/\d+$", re.MULTILINE)),
     "Market ID": (int, None),
     "Active": (bool, None),
-    "Poll": (bool, None),
 }
 
 
@@ -135,7 +134,6 @@ def _load_carrier(headers: list[str], row: list[Any], index: int) -> Carrier | N
         name=data["ID"],
         system=System(data["Current System"], current_location),
         deploy_system=System(data["Deploy System"], deploy_location),
-        restock_status=None,
         allocated_space=data["Allocated"],
         display_name=data["Name"],
         owner_discord_id=data["Contact"],
@@ -145,7 +143,6 @@ def _load_carrier(headers: list[str], row: list[Any], index: int) -> Carrier | N
         inara_url=data["URL"],
         last_update=update,
         active_depot=data["Active"],
-        inara_poll=data["Poll"],
     )
 
 
@@ -201,9 +198,11 @@ async def push_carriers(carriers: list[Carrier]) -> None:
                 row[headers.index("Price")] = ""
                 row[headers.index("Market")] = "Unlisted"
 
+            if carrier.capi_status:
+                row[headers.index("Synced")] = str(carrier.capi_status)
+
             row[headers.index("Update")] = int(carrier.last_update.timestamp())
             row[headers.index("Current System")] = carrier.system.name
-
             row[headers.index("Colour")] = str(carrier.colour)
 
     await SPREADSHEET.async_push()

@@ -190,7 +190,7 @@ class DepotService:
 
         depot = self.bridges.find(station) or self.carriers.find(station)
 
-        if not depot or timestamp < depot.last_update:
+        if not depot or timestamp <= depot.last_update:
             return
 
         if isinstance(depot, Carrier) and depot.system != system:
@@ -262,9 +262,6 @@ class DepotService:
         _LOGGER.info("Starting INARA update")
 
         for carrier in self.carriers:
-            if carrier.inara_poll is False:
-                continue
-
             search = re.search(
                 r"^https:\/\/inara\.cz\/station\/(\d+)$", carrier.inara_url
             )

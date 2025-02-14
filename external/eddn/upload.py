@@ -18,11 +18,8 @@ async def _dispatch(
     schema: str,
     uploader: str,
     message: dict[str, Any],
-    timestamp: bool = True,
 ) -> bool:
     """Send a request directly to EDDN."""
-    if timestamp:
-        message["timestamp"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     data = {
         "$schemaRef": schema,
@@ -60,13 +57,18 @@ async def commodity(
     market: list[Good],
     market_id: int,
     uploader: str,
+    timestamp: datetime | None = None,
 ) -> bool:
     """Wrapper for sending "/schemas/commodity/3" to EDDN."""
+
+    if timestamp is None:
+        timestamp = datetime.now(timezone.utc)
 
     message = {
         "systemName": system,
         "stationName": station,
         "marketId": market_id,
+        "timestamp": timestamp.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "commodities": [
             {
                 "name": good.name,

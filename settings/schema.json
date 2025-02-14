@@ -24,16 +24,11 @@
                 "webhook": {
                     "type": "string",
                     "description": "Webhook to send errors to."
-                },
-                "tick": {
-                    "type": "string",
-                    "description": "Daily time to perform certain actions."
                 }
             },
             "required": [
                 "version",
-                "webhook",
-                "tick"
+                "webhook"
             ]
         },
         "eddn": {
@@ -41,7 +36,6 @@
             "properties": {
                 "software_name": {
                     "type": "string",
-                    "default": "add",
                     "description": "Software name when sending data to EDDN."
                 },
                 "software_version": {
@@ -65,6 +59,31 @@
             "required": [
                 "game_version",
                 "game_build"
+            ]
+        },
+        "capi": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string",
+                    "description": "Client ID when authenticating with CAPI."
+                },
+                "client_name": {
+                    "type": "string",
+                    "description": "Name displayed on Frontier's authentication page."
+                },
+                "redirect_url": {
+                    "type": "string",
+                    "description": "Redirect to this URL when CAPI has authenticated."
+                },
+                "user_agent": {
+                    "type": "string",
+                    "description": "User agent to use when interacting with CAPI."
+                }
+            },
+            "required": [
+                "client_id",
+                "redirect_url"
             ]
         },
         "discord": {
@@ -109,12 +128,51 @@
                 "main_guild_id",
                 "test_guild_id"
             ]
+        },
+        "timings": {
+            "type": "object",
+            "properties": {
+                "market_expiry": {
+                    "type": "integer",
+                    "description": "Flag depots with markets older then this many days."
+                },
+                "market_warning": {
+                    "type": "integer",
+                    "description": "Send warnings to depots with markets older then this many days."
+                },
+                "market_followup": {
+                    "type": "integer",
+                    "description": "Number of hours between consecutive market warnings."
+                },
+                "capi_followup": {
+                    "type": "integer",
+                    "description": "Number of hours between consecutive capi warnings."
+                },
+                "task_revive": {
+                    "type": "integer",
+                    "description": "Number of days between consecutive restock and rescue revives."
+                },
+                "tick": {
+                    "type": "string",
+                    "description": "Daily time to perform certain actions."
+                }
+            },
+            "required": [
+                "market_expiry",
+                "market_warning",
+                "market_followup",
+                "capi_followup",
+                "task_revive",
+                "tick"
+            ]
         }
     },
     "required": [
         "$schema",
         "software",
         "eddn",
-        "discord"
+        "capi",
+        "discord",
+        "timings"
     ]
 }

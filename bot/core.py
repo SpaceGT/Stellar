@@ -84,6 +84,8 @@ class Bot(Client):
         cog_files.extend((_CURRENT_DIR / "admin").glob("*.py"))
         cog_files.extend((_CURRENT_DIR / "misc").glob("*.py"))
 
+        cog_files.append(_CURRENT_DIR / "capi" / "slash.py")
+
         cog_files.append(_CURRENT_DIR / "rescue" / "prompt.py")
         cog_files.append(_CURRENT_DIR / "rescue" / "slash.py")
         cog_files.append(_CURRENT_DIR / "rescue" / "view.py")

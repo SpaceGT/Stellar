@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from common import System
-from common.enums import Colour, Stage
+from common.enums import Colour, Stage, State
 
 from .depot import Depot
 
@@ -33,9 +33,10 @@ class Carrier(Depot):
     reserve_tritium: int
     allocated_space: int
     owner_discord_id: int
-    restock_status: Literal[Stage.PENDING, Stage.UNDERWAY] | None
     active_depot: bool
-    inara_poll: bool
+
+    capi_status: State | None = None
+    restock_status: Literal[Stage.PENDING, Stage.UNDERWAY] | None = None
 
     def __str__(self) -> str:
         return f"[{self.name}] {self.display_name}"
