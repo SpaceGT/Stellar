@@ -3,7 +3,7 @@ View systems on a galaxy map.
 Designed to work with https://www.edsm.net/img/galaxyBackgroundV2.jpg
 """
 
-import logging
+from enum import Enum
 from io import BytesIO
 
 from PIL import Image, ImageColor, ImageDraw
@@ -11,13 +11,23 @@ from PIL import Image, ImageColor, ImageDraw
 from settings import CONFIG_DIR
 from utils.points import Point2D, Point3D
 
-_LOGGER = logging.getLogger(__name__)
+
+class Gradient(Enum):
+    """Subtle colour gradients."""
+
+    GREEN = ("#78CC78", "#53BE53")
+
+
+class Colour(Enum):
+    """Friendly colour names."""
+
+    GREY = "#2C2C2C"
 
 
 def _world_to_screen(point: Point2D) -> Point2D:
     """Converts a 2D Point in LY to a point on the map in pixels."""
 
-    density = 9 * 10**-3  # Lightyears per pixel
+    density = 9 * 10**-3  # Pixels per lightyear
     origin = (450, 683)  # Position of Sol
 
     x = int(density * point.x + origin[0])
@@ -89,46 +99,55 @@ def _circle(
     return ellipse.resize((diameter, diameter), Image.Resampling.LANCZOS)
 
 
-def render(
-    points: list[Point3D],
-    gradient: tuple[str, str] = ("#78CC78", "#53BE53"),
-    outline: str = "#2C2C2CFC",
-    dot_size: int = 26,
-    border_size: int = 2,
-) -> BytesIO:
-    """Render points on the galaxy map."""
-    dot_radius = dot_size // 2
+class Galaxy:
+    """Helper for drawing to a galaxy map."""
 
-    with Image.open(CONFIG_DIR / "galaxy.jpg") as img:
-        for point in points:
-            image_point = _world_to_screen(Point2D(point.x, point.z))
+    def __init__(self):
+        self._image = Image.open(CONFIG_DIR / "galaxy.jpg")
 
-            start_colour = ImageColor.getcolor(gradient[0], "RGB")
-            end_colour = ImageColor.getcolor(gradient[1], "RGB")
-            border_colour = ImageColor.getcolor(outline, "RGBA")
+    def add_point(
+        self,
+        point: Point3D,
+        colour: Gradient = Gradient.GREEN,
+        outline: Colour = Colour.GREY,
+        dot_size: int = 26,
+        border_size: int = 2,
+    ) -> None:
+        """Add a marker at a point on the galaxy."""
 
-            assert len(start_colour) == 3
-            assert len(end_colour) == 3
-            assert len(border_colour) == 4
+        dot_radius = dot_size // 2
+        image_point = _world_to_screen(Point2D(point.x, point.z))
 
-            ellipse = _circle(
-                dot_size, border_size, start_colour, end_colour, border_colour
-            )
+        start_colour = ImageColor.getcolor(colour.value[0], "RGB")
+        end_colour = ImageColor.getcolor(colour.value[1], "RGB")
+        border_colour = ImageColor.getcolor(outline.value, "RGB") + (250,)
 
-            img.paste(
-                ellipse,
-                (
-                    image_point.x - dot_radius,
-                    image_point.y - dot_radius,
-                    image_point.x + dot_radius,
-                    image_point.y + dot_radius,
-                ),
-                ellipse,
-            )
+        assert len(start_colour) == 3
+        assert len(end_colour) == 3
+        assert len(border_colour) == 4
 
+        ellipse = _circle(
+            dot_size, border_size, start_colour, end_colour, border_colour
+        )
+
+        self._image.paste(
+            ellipse,
+            (
+                image_point.x - dot_radius,
+                image_point.y - dot_radius,
+                image_point.x + dot_radius,
+                image_point.y + dot_radius,
+            ),
+            ellipse,
+        )
+
+    def view(self) -> None:
+        """Display the image."""
+        self._image.show()
+
+    def render(self) -> BytesIO:
+        """Save the image into a bytes object."""
         img_bytes = BytesIO()
-        img.save(img_bytes, format="PNG")
+        self._image.save(img_bytes, format="PNG")
         img_bytes.seek(0)
-
-    _LOGGER.debug("Created galaxy image for %s", ",".join(map(str, points)))
-    return img_bytes
+        return img_bytes

@@ -10,8 +10,9 @@ from bot import rescue as discord_rescue
 from common import System
 from common.enums import Stage
 from common.tasks import CarrierRescue, Rescue, ShipRescue
-from services import galaxy
 from storage import rescues
+
+from .galaxy import Galaxy
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -170,7 +171,9 @@ class RescueService:
         if system.location is None:
             raise ValueError(f"Cannot find location for '{system}'")
 
-        with galaxy.render([system.location]) as gal_map:
+        galaxy = Galaxy()
+        galaxy.add_point(system.location)
+        with galaxy.render() as gal_map:
             message_id = await discord_rescue.write_task(
                 client,
                 system,

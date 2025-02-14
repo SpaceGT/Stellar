@@ -10,9 +10,10 @@ from bot import restock as discord_restock
 from common.depots import Carrier
 from common.enums import Stage
 from common.tasks import Restock
-from services import galaxy
 from storage import restocks
 from utils.events import SyncEvent
+
+from .galaxy import Galaxy
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -211,7 +212,9 @@ class RestockService:
 
         carrier.restock_status = Stage.PENDING
 
-        with galaxy.render([carrier.system.location]) as gal_map:
+        galaxy = Galaxy()
+        galaxy.add_point(carrier.system.location)
+        with galaxy.render() as gal_map:
             message_id = await discord_restock.write_task(carrier, gal_map)
 
         self.restocks.add(
