@@ -5,7 +5,7 @@ import json
 import logging
 import re
 import zlib
-from asyncio import Task
+from asyncio import Future, Task
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -42,21 +42,33 @@ class Monitor:
 
     def start(self) -> None:
         """Starts monitoring EDDN."""
-        assert self._task is None, "Listener started twice."
+        if self._task and not self._task.done():
+            _LOGGER.warning("Ignoring duplicate start.")
+            return
 
         self._socket.connect(Monitor._ENDPOINT)
         self._task = asyncio.create_task(self._monitor(), name="monitor")
+        self._task.add_done_callback(self._error)
 
         _LOGGER.info("EDDN listener started")
 
     def close(self) -> None:
         """Stops monitoring EDDN."""
-        assert self._task, "Listener is already closed."
+        if not self._task or self._task.done():
+            _LOGGER.warning("Ignoring duplicate close.")
+            return
 
         self._task.cancel()
         self._socket.disconnect(Monitor._ENDPOINT)
 
         self._task = None
+
+    def _error(self, future: Future) -> None:
+        if future.cancelled():
+            return
+
+        error = future.exception()
+        _LOGGER.exception("EDDN listener aborted!", exc_info=error)
 
     async def _restart(self) -> None:
         """Restarts in-progress monitoring."""
@@ -142,6 +154,11 @@ class Monitor:
             f"Ignoring bad commodity update for '{data['message']['stationName']}'"
         ]
         for good in market:
+
+            # A bug makes some pesticides (ironic) buy and sell for free
+            if good.name == "pesticides":
+                continue
+
             issues = []
 
             buying = any((good.demand.quantity, good.demand.price))
