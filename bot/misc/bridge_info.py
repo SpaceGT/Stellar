@@ -9,7 +9,7 @@ from discord import Client, File, Interaction, app_commands
 from discord.ext import commands
 
 from bot.core import CLIENT
-from services.depots import DEPOT_SERVICE
+from services import DEPOT_SERVICE
 from settings import DISCORD
 from utils import table
 

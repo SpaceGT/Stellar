@@ -5,8 +5,7 @@ from discord.app_commands import Choice
 from discord.ext import commands
 
 from bot.core import CLIENT
-from services.depots import DEPOT_SERVICE
-from services.restocks import RESTOCK_SERVICE
+from services import DEPOT_SERVICE, RESTOCK_SERVICE
 from settings import DISCORD
 
 

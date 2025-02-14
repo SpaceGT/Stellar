@@ -8,7 +8,7 @@ from discord.ext import commands
 
 from bot.core import CLIENT
 from common.tasks.rescue import Rescue
-from services.rescues import RESCUE_SERVICE
+from services import RESCUE_SERVICE
 from settings import DISCORD
 
 

@@ -11,7 +11,7 @@ from discord.ext import commands
 from bot.core import CLIENT
 from common import Good
 from common.depots import stock_bracket
-from services.depots import DEPOT_SERVICE
+from services import DEPOT_SERVICE
 from settings import DISCORD
 
 

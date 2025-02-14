@@ -14,8 +14,8 @@ from bot.core import CLIENT
 from common import Good
 from common.depots import stock_bracket
 from external import eddn, edsm, inara
-from services.depots import DEPOT_SERVICE
-from settings import DISCORD
+from services import DEPOT_SERVICE
+from settings import DISCORD, SOFTWARE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class Market(commands.Cog):
         service=[
             Choice(name="INARA", value=_ServiceChoice.INARA),
             Choice(name="EDSM", value=_ServiceChoice.EDSM),
-            Choice(name="Stellar", value=_ServiceChoice.SELF),
+            Choice(name=SOFTWARE.name, value=_ServiceChoice.SELF),
             Choice(name="None", value=_ServiceChoice.NONE),
         ],
     )

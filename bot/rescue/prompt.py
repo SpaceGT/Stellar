@@ -9,7 +9,7 @@ from discord.ui import Button, Modal, TextInput, View, button
 import settings
 from bot.core import CLIENT
 from external import edsm
-from services.rescues import RESCUE_SERVICE
+from services import RESCUE_SERVICE
 
 _LOGGER = logging.getLogger(__name__)
 

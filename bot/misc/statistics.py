@@ -10,9 +10,7 @@ from discord.ext import commands
 
 from bot.core import CLIENT
 from common.tasks import Restock
-from services.depots import DEPOT_SERVICE
-from services.rescues import RESCUE_SERVICE
-from services.restocks import RESTOCK_SERVICE
+from services import CAPI_SERVICE, DEPOT_SERVICE, RESCUE_SERVICE, RESTOCK_SERVICE
 from settings import DISCORD
 
 _LOGGER = logging.getLogger(__name__)
@@ -216,7 +214,7 @@ class Stats(commands.GroupCog, group_name="statistics"):
             + f"**Identifier:**  `{carrier.market_id}`\n"
             + f"**Reserve:**  `{carrier.reserve_tritium:,}t`\n"
             + f"**Allocated:**  `{carrier.allocated_space:,}t`\n"
-            + f"**Syncing:**  `{carrier.inara_poll}`\n"
+            + f"**Syncing:**  `{CAPI_SERVICE.get_state(carrier.name)}`\n"
         )
 
         restocks = sorted(
