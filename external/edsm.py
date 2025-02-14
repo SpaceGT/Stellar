@@ -17,12 +17,11 @@ _SYSTEM_URL = "https://www.edsm.net/api-v1/system"
 async def _request(url: str) -> dict[str, Any]:
     headers = {"User-Agent": SOFTWARE.user_agent}
 
-    async with ClientSession() as session:
-        async with session.get(f"{url}", headers=headers, timeout=_TIMEOUT) as response:
-            if response.status != 200:
-                response.raise_for_status()
-
-            data: dict[str, Any] = await response.json()
+    async with (
+        ClientSession(raise_for_status=True) as session,
+        session.get(url, headers=headers, timeout=_TIMEOUT) as response,
+    ):
+        data: dict[str, Any] = await response.json()
 
     return data
 

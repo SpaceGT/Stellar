@@ -17,14 +17,11 @@ _URL = "https://inara.cz/elite"
 async def _request(url: str) -> BeautifulSoup:
     headers = {"User-Agent": SOFTWARE.user_agent}
 
-    async with ClientSession() as session:
-        async with session.get(
-            f"{_URL}{url}", headers=headers, timeout=_TIMEOUT
-        ) as response:
-            if response.status != 200:
-                response.raise_for_status()
-
-            content = await response.text()
+    async with (
+        ClientSession(raise_for_status=True) as session,
+        session.get(f"{_URL}{url}", headers=headers, timeout=_TIMEOUT) as response,
+    ):
+        content = await response.text()
 
     return BeautifulSoup(content, "lxml")
 
