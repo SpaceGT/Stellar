@@ -1,7 +1,7 @@
 """Expose functions to edit discord tasks."""
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from io import BytesIO
 
 import discord
@@ -10,7 +10,7 @@ from discord import ForumChannel, TextChannel
 from bot.core import CLIENT
 from common.depots import Carrier
 from common.enums import Stage
-from settings import DISCORD
+from settings import DISCORD, TIMINGS
 
 from .embed import EmbedBuilder
 from .view import RestockView
@@ -71,9 +71,10 @@ async def write_revive() -> None:
         if message is None:
             message = [message async for message in thread.history(limit=1)][0]
 
-        if message.created_at.astimezone(timezone.utc) < datetime.now(
-            timezone.utc
-        ) - timedelta(days=14):
+        if (
+            datetime.now(timezone.utc) - message.created_at.astimezone(timezone.utc)
+            > TIMINGS.task_revive
+        ):
             if _get_tag(task_forum, Stage.PENDING) in thread.applied_tags:
                 await thread.send(hauler_revive)
 
@@ -81,21 +82,32 @@ async def write_revive() -> None:
                 await thread.send(owner_revive)
 
 
-async def write_market_alert(carrier: Carrier) -> None:
+async def write_market_alert(
+    discord_id: int, carrier_name: str, last_update: datetime
+) -> None:
     """Notify a carrier owner of their outdated market."""
 
     channel = _get_alert()
-    owner = await channel.guild.fetch_member(carrier.owner_discord_id)
+    owner = await channel.guild.fetch_member(discord_id)
+
+    last_message = [message async for message in owner.history(limit=1)]
+    if (
+        last_message
+        and datetime.now(timezone.utc)
+        - last_message[1].created_at.astimezone(timezone.utc)
+        < TIMINGS.market_followup
+    ):
+        return
 
     message = (
-        f"<@{carrier.owner_discord_id}> your carrier `{str(carrier)}` has not had a market update "
-        + f"for `over {(datetime.now(timezone.utc)-carrier.last_update).days//30} months`\n"
-        + "Please send an EDDN update at your earliest convenience!"
+        f"<@{discord_id}> your carrier `{carrier_name}` has not had a market update "
+        + f"for `over {(datetime.now(timezone.utc)-last_update).days//7} weeks`\n"
+        + "Please setup CAPI integration (or send an EDDN update) at your earliest convenience!"
     )
 
     _LOGGER.info(
         "Sending market data warning for '%s' to %s",
-        str(carrier),
+        carrier_name,
         owner.name,
     )
 

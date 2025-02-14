@@ -1,7 +1,7 @@
 """Expose functions to edit discord tasks."""
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from io import BytesIO
 
 import discord
@@ -10,7 +10,7 @@ from discord import ForumChannel
 from bot.core import CLIENT
 from common import System
 from common.enums import Stage
-from settings import DISCORD
+from settings import DISCORD, TIMINGS
 
 from .embed import BaseEmbedBuilder, CarrierEmbedBuilder, ShipEmbedBuilder
 from .view import RescueView
@@ -63,9 +63,10 @@ async def write_revive() -> None:
         if message is None:
             message = [message async for message in thread.history(limit=1)][0]
 
-        if message.created_at.astimezone(timezone.utc) < datetime.now(
-            timezone.utc
-        ) - timedelta(days=14):
+        if (
+            datetime.now(timezone.utc) - message.created_at.astimezone(timezone.utc)
+            > TIMINGS.task_revive
+        ):
             if _get_tag(task_forum, Stage.PENDING) in thread.applied_tags:
                 await thread.send(rescuer_revive)
 

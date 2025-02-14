@@ -1,10 +1,11 @@
 """Holds information on a depot."""
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from common import Good, System
 from common.enums import Colour
+from settings import TIMINGS
 
 
 @dataclass
@@ -33,7 +34,7 @@ class Depot:
     def colour(self) -> Colour:
         """Give the depot a colour representing the overall state."""
 
-        if self.last_update < datetime.now(timezone.utc) - timedelta(days=90):
+        if datetime.now(timezone.utc) - self.last_update > TIMINGS.market_expiry:
             return Colour.PURPLE
 
         if not self.tritium:
