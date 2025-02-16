@@ -11,27 +11,29 @@ from PIL import Image, ImageColor, ImageDraw
 from settings import CONFIG_DIR
 from utils.points import Point2D, Point3D
 
+_PIXELS_PER_LIGHTYEAR = 9 * 10**-3
+
 
 class Gradient(Enum):
     """Subtle colour gradients."""
 
     GREEN = ("#78CC78", "#53BE53")
+    BLUE = ("#02ADFC", "#02D6FC")
 
 
 class Colour(Enum):
     """Friendly colour names."""
 
+    BLUE = "#02ADFC"
     GREY = "#2C2C2C"
 
 
 def _world_to_screen(point: Point2D) -> Point2D:
     """Converts a 2D Point in LY to a point on the map in pixels."""
-
-    density = 9 * 10**-3  # Pixels per lightyear
     origin = (450, 683)  # Position of Sol
 
-    x = int(density * point.x + origin[0])
-    y = int(density * -point.y + origin[1])
+    x = round(_PIXELS_PER_LIGHTYEAR * point.x + origin[0])
+    y = round(_PIXELS_PER_LIGHTYEAR * -point.y + origin[1])
 
     return Point2D(x, y)
 
@@ -114,9 +116,18 @@ class Galaxy:
         border_size: int = 2,
     ) -> None:
         """Add a marker at a point on the galaxy."""
+        self.add_points([point], colour, outline, dot_size, border_size)
 
+    def add_points(
+        self,
+        points: list[Point3D],
+        colour: Gradient = Gradient.GREEN,
+        outline: Colour = Colour.GREY,
+        dot_size: int = 26,
+        border_size: int = 2,
+    ) -> None:
+        """Add markers for a list of points on the galaxy."""
         dot_radius = dot_size // 2
-        image_point = _world_to_screen(Point2D(point.x, point.z))
 
         start_colour = ImageColor.getcolor(colour.value[0], "RGB")
         end_colour = ImageColor.getcolor(colour.value[1], "RGB")
@@ -130,15 +141,48 @@ class Galaxy:
             dot_size, border_size, start_colour, end_colour, border_colour
         )
 
+        for point in points:
+            image_point = _world_to_screen(Point2D(point.x, point.z))
+            self._image.paste(
+                ellipse,
+                (
+                    image_point.x - dot_radius,
+                    image_point.y - dot_radius,
+                    image_point.x + dot_radius,
+                    image_point.y + dot_radius,
+                ),
+                ellipse,
+            )
+
+    def add_cells(
+        self,
+        points: list[Point3D],
+        colour: Colour,
+        size: tuple[int, int],
+        width: int = 1,
+    ) -> None:
+        """Highlight a cell centered on a point."""
+        cell_colour = ImageColor.getcolor(colour.value, "RGB")
+
+        buffer = Image.new("RGBA", self._image.size, (0, 0, 0, 0))
+        buffer_draw = ImageDraw.Draw(buffer)
+
+        for point in points:
+            image_point = _world_to_screen(Point2D(point.x, point.z))
+            buffer_draw.rectangle(
+                (
+                    image_point.x - 0.5 * size[0] * _PIXELS_PER_LIGHTYEAR,
+                    image_point.y - 0.5 * size[1] * _PIXELS_PER_LIGHTYEAR,
+                    image_point.x + 0.5 * size[0] * _PIXELS_PER_LIGHTYEAR,
+                    image_point.y + 0.5 * size[1] * _PIXELS_PER_LIGHTYEAR,
+                ),
+                outline=cell_colour,
+                width=width,
+            )
+
         self._image.paste(
-            ellipse,
-            (
-                image_point.x - dot_radius,
-                image_point.y - dot_radius,
-                image_point.x + dot_radius,
-                image_point.y + dot_radius,
-            ),
-            ellipse,
+            buffer,
+            buffer,
         )
 
     def view(self) -> None:

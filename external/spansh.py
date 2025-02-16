@@ -5,10 +5,12 @@ from typing import Any
 from aiohttp import ClientSession
 from thefuzz import process  # type: ignore [import-untyped]
 
+from common import System
 from settings import SOFTWARE
+from utils.points import Point3D
 
 _TIMEOUT = 60
-_SYSTEM_URL = "https://spansh.co.uk/api/systems"
+_URL = "https://spansh.co.uk/api"
 
 
 async def _request(url: str) -> dict[str, Any]:
@@ -26,7 +28,7 @@ async def _request(url: str) -> dict[str, Any]:
 async def predict_system(name: str) -> list[str]:
     """Return a confidence-ordered list of system names based on a partial name."""
 
-    response = await _request(f"{_SYSTEM_URL}/field_values/system_names?q={name}")
+    response = await _request(f"{_URL}/systems/field_values/system_names?q={name}")
     if response is None:
         return []
 
@@ -43,3 +45,21 @@ async def predict_system(name: str) -> list[str]:
     ]
 
     return output
+
+
+async def nearest_system(location: Point3D) -> System:
+    """Return the closest known system to a location."""
+
+    response = await _request(
+        f"{_URL}/nearest?x={location.x}&y={location.y}&z={location.z}"
+    )
+    system = System(
+        response["system"]["name"],
+        Point3D(
+            response["system"]["x"],
+            response["system"]["y"],
+            response["system"]["z"],
+        ),
+    )
+
+    return system
