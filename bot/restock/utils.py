@@ -94,7 +94,7 @@ async def write_market_alert(
     if (
         last_message
         and datetime.now(timezone.utc)
-        - last_message[1].created_at.astimezone(timezone.utc)
+        - last_message[0].created_at.astimezone(timezone.utc)
         < TIMINGS.market_followup
     ):
         return
