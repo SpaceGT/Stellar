@@ -17,7 +17,7 @@ simple_formatter = Formatter(
 
 colored_formatter = Formatter(
     (
-        "\u001b[30m%(asctime)s\u001b[0m "
+        "\u001b[90m%(asctime)s\u001b[0m "
         + "\u001b[34m%(levelname)-8s\u001b[0m "
         + "\u001b[32m%(name)-22s \u001b[0m %(message)s"
     ),
