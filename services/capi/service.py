@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from collections.abc import Iterable, Iterator
 from datetime import datetime, timedelta, timezone
 
 from aiohttp import ClientResponseError
@@ -15,16 +16,43 @@ from utils.events import AsyncEvent
 _LOGGER = logging.getLogger(__name__)
 
 
+class _Data:
+    def __init__(self, data: Iterable[CapiData]) -> None:
+        self._data: set[CapiData] = set(data)
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def __iter__(self) -> Iterator[CapiData]:
+        return iter(self._data)
+
+    def add(self, data: CapiData) -> None:
+        """Add a new entry to the collection."""
+        self._data.add(data)
+
+    def find_carrier(self, callsign: str) -> CapiData | None:
+        """Get CAPI information for a carrier."""
+        return next((data for data in self._data if data.carrier == callsign), None)
+
+    def find_commander(self, commander: str) -> CapiData | None:
+        """Get CAPI information for a commander."""
+        return next((data for data in self._data if data.commander == commander), None)
+
+    def find_account(self, account: int) -> CapiData | None:
+        """Get CAPI information for an account."""
+        return next((data for data in self._data if data.customer_id == account), None)
+
+
 class CapiService:
     """Communicates with the Companion API."""
 
     def __init__(self) -> None:
-        self._data: set[CapiData] = set()
+        self._data = _Data([])
         self.sync = AsyncEvent()
 
     async def pull(self, lazy: bool = False) -> None:
         """Fetch the latest CAPI data."""
-        self._data = set(await capi.load_data(lazy))
+        self._data = _Data(await capi.load_data(lazy))
         _LOGGER.debug("Pulled CAPI data")
 
     async def push(self) -> None:
@@ -32,20 +60,13 @@ class CapiService:
         await capi.push_data(self._data)
         _LOGGER.debug("Pushed CAPI data")
 
-    def get_data(self, callsign: str) -> CapiData | None:
-        """
-        Gets internal CAPI information for a carrier (if available).
-        Avoid using this in favour of `get_state` if possible.
-        """
-        return next((data for data in self._data if data.carrier == callsign), None)
-
     def get_carriers(self) -> list[str]:
         """Get all carriers registered with CAPI."""
         return [data.carrier for data in self._data if data.carrier]
 
     def get_state(self, callsign: str) -> State:
         """Gets the CAPI state for a carrier."""
-        data = self.get_data(callsign)
+        data = self._data.find_carrier(callsign)
 
         if not data:
             return State.UNLISTED
@@ -98,7 +119,7 @@ class CapiService:
         Returns true on success or false if a reauth is needed.
         """
 
-        info = next((data for data in self._data if data.customer_id == account), None)
+        info = self._data.find_account(account)
         if not info:
             raise ValueError(f"No account with id {account}")
 
@@ -120,6 +141,29 @@ class CapiService:
             await self.push()
 
         return success
+
+    def get_data(self) -> _Data:
+        """
+        Returns all Companion API data for external use.
+        You should use the service directly where possible.
+        """
+        return self._data
+
+    async def get_token(self, commander: str) -> tuple[str, datetime] | None:
+        """
+        Fetches the current access token of a commander for external use.
+        You should use the service directly where possible.
+        """
+        info = self._data.find_commander(commander)
+
+        if not info or not info.access_token:
+            return None
+
+        if info.access_token[1] < datetime.now(timezone.utc):
+            if not await self._refresh_token(info.customer_id):
+                return None
+
+        return info.access_token
 
     async def auth_account(
         self, auth_code: str, verifier: str, discord: int, sync: bool = False
@@ -172,9 +216,7 @@ class CapiService:
         else:
             auth_type = Service.EPIC
 
-        data = next(
-            (info for info in self._data if info.customer_id == customer_id), None
-        )
+        data = self._data.find_account(customer_id)
 
         if data:
             data.auth_type = auth_type
@@ -207,7 +249,7 @@ class CapiService:
         Returns None if the carrier cannot be accessed.
         """
 
-        info = self.get_data(callsign)
+        info = self._data.find_carrier(callsign)
         if not info or not info.access_token:
             return None
 

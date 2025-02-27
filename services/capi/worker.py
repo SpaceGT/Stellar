@@ -123,6 +123,9 @@ class CapiWorker:
             if DEPOT_SERVICE.carriers.find(callsign):
                 continue
 
+            if CAPI_SERVICE.get_state(callsign) != State.SYNCING:
+                continue
+
             update = self._cache.get(callsign, datetime.now(timezone.utc))
             carriers.append(SimpleCarrier(callsign, update))
 

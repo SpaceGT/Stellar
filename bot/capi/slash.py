@@ -1,11 +1,18 @@
 """Allows users setup Companion API integration."""
 
-from discord import Client, Interaction, app_commands
+import json
+from io import BytesIO
+from itertools import chain
+from typing import Any
+
+from discord import Client, File, Interaction, app_commands
+from discord.app_commands import Choice
 from discord.ext import commands
+from thefuzz import process
 
 from bot.core import CLIENT
 from common.enums import State
-from external.capi import auth
+from external.capi import AuthEndpoint, QueryEndpoint, auth, query
 from services import CAPI_SERVICE, DEPOT_SERVICE
 from settings import CAPI, DISCORD, SOFTWARE
 
@@ -36,7 +43,7 @@ This site can be used to revoke {SOFTWARE.name}'s access at any time should you 
 """
 
 
-class Capi(commands.Cog):
+class Authorise(commands.Cog):
     """Help users setup the Companion API."""
 
     @app_commands.command(  # type: ignore [arg-type]
@@ -72,6 +79,108 @@ class Capi(commands.Cog):
         )
 
 
+class Admin(commands.GroupCog, group_name="capi"):
+    """Manually manage CAPI data."""
+
+    @app_commands.command(  # type: ignore [arg-type]
+        name="fetch",
+        description="Fetch information from CAPI.",
+    )
+    @app_commands.describe(
+        commander="Account to fetch information for.",
+        endpoint="Which information is queried.",
+    )
+    @app_commands.choices(
+        endpoint=[
+            Choice(name=endpoint, value=endpoint)
+            for endpoint in chain(AuthEndpoint, QueryEndpoint)
+        ],
+    )
+    async def fetch(
+        self,
+        interaction: Interaction[Client],
+        commander: str,
+        endpoint: Choice[str],
+    ) -> None:
+        """Fetch information from CAPI."""
+        commanders = [data.commander for data in CAPI_SERVICE.get_data()]
+        if commander not in commanders:
+            await interaction.response.send_message(
+                (
+                    "## :link: Frontier Companion API :link:\n"
+                    + f"No data availible for `{commander}`"
+                ),
+                ephemeral=True,
+            )
+            return
+
+        token = await CAPI_SERVICE.get_token(commander)
+        if token is None:
+            await interaction.response.send_message(
+                (
+                    "## :link: Frontier Companion API :link:\n"
+                    + f"Could not fetch token for `{commander}`"
+                ),
+                ephemeral=True,
+            )
+            return
+
+        data: dict[str, Any]
+        if endpoint.value in AuthEndpoint:
+            data = await auth.request(
+                AuthEndpoint(endpoint.value),
+                token[0],
+            )
+
+        elif endpoint.value in QueryEndpoint:
+            data = await query.request(
+                QueryEndpoint(endpoint.value),
+                token[0],
+            )
+
+        else:
+            await interaction.response.send_message(
+                (
+                    "## :link: Frontier Companion API :link:\n"
+                    + f"Unknown endpoint `{endpoint}`"
+                ),
+                ephemeral=True,
+            )
+            return
+
+        pretty_data = json.dumps(data, indent=4)
+        with BytesIO(pretty_data.encode("utf-8")) as bytes_io:
+            response = (
+                "## :link: Frontier Companion API :link:\n"
+                + f"Fetched `{endpoint.name}` for `{commander}`"
+            )
+
+            file = File(bytes_io, f"capi.json")
+            await interaction.response.send_message(response, ephemeral=True, file=file)
+
+    @fetch.autocomplete("commander")
+    async def fetch_autocomplete(
+        self,
+        interaction: Interaction[Client],
+        current: str,
+    ) -> list[Choice[str]]:
+        """Generate suggestions for commanders."""
+        commanders = [data.commander for data in CAPI_SERVICE.get_data()]
+
+        if not current:
+            return [Choice(name=name, value=name) for name in commanders[:5]]
+
+        return [
+            Choice(name=commander, value=commander)
+            for commander, _ in process.extract(
+                current,
+                commanders,
+                limit=5,
+            )
+        ]
+
+
 def main() -> None:
-    """Load the cog into the client."""
-    CLIENT.load_cog(Capi(), DISCORD.main_guild_id)
+    """Load the cogs into the client."""
+    CLIENT.load_cog(Authorise(), DISCORD.main_guild_id)
+    CLIENT.load_cog(Admin(), DISCORD.test_guild_id)

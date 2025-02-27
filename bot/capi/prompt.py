@@ -43,7 +43,7 @@ def carrier_overview(discord_id: int, owner_mention: str) -> str:
 
         # Use `get_state` in the future.
         # You will need to store the commander name as a carrier field.
-        info = CAPI_SERVICE.get_data(carrier.name)
+        info = CAPI_SERVICE.get_data().find_carrier(carrier.name)
         if not info:
             continue
 
@@ -54,12 +54,12 @@ def carrier_overview(discord_id: int, owner_mention: str) -> str:
 
         carrier_message += [
             f"**System:**  `{carrier.system}`",
-            f"**Capacity:**  `{carrier.allocated_space}`",
+            f"**Capacity:**  `{carrier.allocated_space:,}t`",
         ]
 
         tritium: str
         if carrier.tritium and not carrier.tritium.demand.quantity:
-            tritium = f"**Tritium:**  `{carrier.tritium.stock.quantity}`"
+            tritium = f"**Tritium:**  `{carrier.tritium.stock.quantity:,}t`"
         else:
             tritium = "**Tritium:**  `Not Selling`"
 

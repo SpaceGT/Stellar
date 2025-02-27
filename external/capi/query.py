@@ -2,6 +2,7 @@
 
 import base64
 import logging
+from enum import StrEnum
 from typing import Any
 
 from aiohttp import ClientSession
@@ -19,12 +20,23 @@ class EpicFail(Exception):
     """Raised when Epic fails to authenticate CAPI."""
 
 
-async def _request(url: str, headers: dict[str, str]) -> dict[str, Any]:
+class Endpoint(StrEnum):
+    FLEET_CARRIER = "fleetcarrier"
+    PROFILE = "profile"
+    SHIPYARD = "shipyard"
+    MARKET = "market"
+    JOURNAL = "journal"
+    COMMUNITY_GOALS = "communitygoals"
+
+
+async def _request(endpoint: Endpoint, headers: dict[str, str]) -> dict[str, Any]:
     data: dict[str, str | int] = {}
 
     async with (
         ClientSession() as session,
-        session.get(url, headers=headers, timeout=_TIMEOUT) as response,
+        session.get(
+            f"{_URL}/{endpoint}", headers=headers, timeout=_TIMEOUT
+        ) as response,
     ):
         if "purchase Elite: Dangerous" in await response.text():
             raise EpicFail
@@ -37,6 +49,16 @@ async def _request(url: str, headers: dict[str, str]) -> dict[str, Any]:
     return data
 
 
+async def request(endpoint: Endpoint, access_token: str) -> dict[str, Any]:
+    """Query a given endpoint and return raw JSON."""
+
+    headers = {
+        "User-Agent": CAPI.user_agent,
+        "Authorization": f"Bearer {access_token}",
+    }
+    return await _request(endpoint, headers)
+
+
 async def fleetcarrier(
     access_token: str,
 ) -> tuple[tuple[str, str, int], list[Good], str] | None:
@@ -46,12 +68,7 @@ async def fleetcarrier(
     Returns none if the player does not own a carrier.
     """
 
-    headers = {
-        "User-Agent": CAPI.user_agent,
-        "Authorization": f"Bearer {access_token}",
-    }
-
-    response = await _request(f"{_URL}/fleetcarrier", headers)
+    response = await request(Endpoint.FLEET_CARRIER, access_token)
     if not response:
         return None
 
@@ -98,13 +115,7 @@ async def profile(access_token: str) -> str:
     Query the /profile endpoint
     Returns the commander name
     """
-
-    headers = {
-        "User-Agent": CAPI.user_agent,
-        "Authorization": f"Bearer {access_token}",
-    }
-    response = await _request(f"{_URL}/profile", headers)
-
+    response = await request(Endpoint.PROFILE, access_token)
     _LOGGER.info("Fetched commander profile for '%s'", response["commander"]["name"])
 
     return response["commander"]["name"]

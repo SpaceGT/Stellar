@@ -83,7 +83,7 @@ async def tick() -> None:
         if not carrier.active_depot:
             continue
 
-        data = CAPI_SERVICE.get_data(carrier.name)
+        data = CAPI_SERVICE.get_data().find_carrier(carrier.name)
         if data and not data.access_token:
             await capi.write_capi_alert(data.discord_id, data.commander, data.auth_type)
 

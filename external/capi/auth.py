@@ -5,6 +5,7 @@ import hashlib
 import logging
 import os
 from datetime import datetime, timedelta, timezone
+from enum import StrEnum
 from typing import Any
 from urllib import parse
 
@@ -18,9 +19,19 @@ _URL = "https://auth.frontierstore.net"
 _LOGGER = logging.getLogger(__name__)
 
 
+class GetEndpoint(StrEnum):
+    DECODE = "decode"
+    ME = "me"
+
+
+class PostEndpoint(StrEnum):
+    TOKEN = "token"
+
+
 async def _post_request(
-    url: str, query: dict[str, str], headers: dict[str, str]
+    endpoint: PostEndpoint, query: dict[str, str], headers: dict[str, str]
 ) -> dict[str, Any]:
+    url = f"{_URL}/{endpoint}"
     async with (
         ClientSession(raise_for_status=True) as session,
         session.post(
@@ -32,7 +43,10 @@ async def _post_request(
     return data
 
 
-async def _get_request(url: str, headers: dict[str, str]) -> dict[str, Any]:
+async def _get_request(
+    endpoint: GetEndpoint, headers: dict[str, str]
+) -> dict[str, Any]:
+    url = f"{_URL}/{endpoint}"
     async with (
         ClientSession(raise_for_status=True) as session,
         session.get(url, headers=headers, timeout=_TIMEOUT) as response,
@@ -40,6 +54,19 @@ async def _get_request(url: str, headers: dict[str, str]) -> dict[str, Any]:
         data: dict[str, str | int] = await response.json()
 
     return data
+
+
+async def request(endpoint: GetEndpoint, access_token: str) -> dict[str, Any]:
+    """
+    Query a given endpoint and return raw JSON.
+    Requires an access token - use existing functions for authentication.
+    """
+
+    headers = {
+        "User-Agent": CAPI.user_agent,
+        "Authorization": f"Bearer {access_token}",
+    }
+    return await _get_request(endpoint, headers)
 
 
 def _encode(data: bytes) -> str:
@@ -98,7 +125,7 @@ async def get_new_tokens(auth_code: str, verifier: str) -> tuple[str, str, datet
         "client_id": CAPI.client_id,
     }
 
-    data = await _post_request(f"{_URL}/token", query, headers)
+    data = await _post_request(PostEndpoint.TOKEN, query, headers)
     expiry = datetime.now(timezone.utc) + timedelta(seconds=data["expires_in"])
 
     _LOGGER.info("Fetched access tokens")
@@ -119,7 +146,7 @@ async def get_refreshed_tokens(refresh_token: str) -> tuple[str, str, datetime]:
         "refresh_token": refresh_token,
     }
 
-    data = await _post_request(f"{_URL}/token", query, headers)
+    data = await _post_request(PostEndpoint.TOKEN, query, headers)
     expiry = datetime.now(timezone.utc) + timedelta(seconds=data["expires_in"])
 
     _LOGGER.debug("Refreshed access tokens")
@@ -130,11 +157,6 @@ async def decode_token(access_token: str) -> tuple[int, str | None]:
     """Gets account into from an access token."""
     _LOGGER.info("Decoding access token ending in '%s'", access_token[-20:])
 
-    headers = {
-        "User-Agent": CAPI.user_agent,
-        "Authorization": f"Bearer {access_token}",
-    }
-
-    data = await _get_request(f"{_URL}/decode", headers)
+    data = await request(GetEndpoint.DECODE, access_token)
     assert isinstance(data["usr"], dict)
     return (int(data["usr"]["customer_id"]), data["usr"].get("thirdPartyUserId", None))
