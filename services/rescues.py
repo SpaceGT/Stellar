@@ -166,7 +166,7 @@ class RescueService:
         client: int,
         system: System,
         tritium: int | None = None,
-    ) -> None:
+    ) -> int:
         """Create a new rescue task."""
         if system.location is None:
             raise ValueError(f"Cannot find location for '{system}'")
@@ -210,8 +210,9 @@ class RescueService:
             )
 
         self.rescues.add(rescue)
-
         await self.push()
+
+        return rescue.message
 
     async def close_rescue(
         self,

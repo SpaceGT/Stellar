@@ -38,6 +38,7 @@ class Prompt(Modal, title="Rescue Info"):
         self, interaction: discord.Interaction[Client]
     ) -> None:
         """Open a modal where a resupply task can be requested."""
+        await interaction.response.defer(ephemeral=True)
         system_info = await edsm.system(self.system.value)
 
         if system_info is None:
@@ -50,7 +51,7 @@ class Prompt(Modal, title="Rescue Info"):
                 interaction.user.name,
                 self.system.value,
             )
-            await interaction.response.send_message(response, ephemeral=True)
+            await interaction.followup.send(response, ephemeral=True)
             return
 
         if self.tritium.value:
@@ -63,17 +64,32 @@ class Prompt(Modal, title="Rescue Info"):
                     interaction.user.name,
                     self.tritium.value,
                 )
-                await interaction.response.send_message(response, ephemeral=True)
+                await interaction.followup.send(response, ephemeral=True)
                 return
         else:
             tritium = None
+
+        for rescue in RESCUE_SERVICE.rescues:
+            if (
+                not rescue.progress.end
+                and rescue.system == system_info
+                and rescue.client == interaction.user.id
+            ):
+                response = f"## :x: Duplicate Rescue :x:\n<#{rescue.message}>"
+                await interaction.followup.send(response, ephemeral=True)
+                return
 
         _LOGGER.info(
             "Processed rescue modal from %s with %s tritium",
             interaction.user.name,
             self.tritium.value,
         )
-        await RESCUE_SERVICE.new_rescue(interaction.user.id, system_info, tritium)
+        message = await RESCUE_SERVICE.new_rescue(
+            interaction.user.id, system_info, tritium
+        )
+
+        response = f"## :ambulance: Task Created :ambulance:\n<#{message}>"
+        await interaction.followup.send(response, ephemeral=True)
 
 
 class Request(View):
