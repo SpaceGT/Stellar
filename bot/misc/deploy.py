@@ -1,11 +1,15 @@
 """Allow managing depot deployments."""
 
-from discord import Client, File, Interaction, app_commands
+import logging
+
+from discord import Client, File, Interaction, User, app_commands
+from discord.app_commands import Choice
 from discord.ext import commands
 
 from bot.core import CLIENT
-from external import spansh
-from services import DEPOT_SERVICE, Colour, Galaxy
+from common.depots import Carrier
+from external import edsm, inara, spansh
+from services import CAPI_SERVICE, DEPOT_SERVICE, Colour, Galaxy
 from services.galaxy import Gradient
 from settings import DISCORD
 from utils.points import Point2D, Point3D
@@ -13,6 +17,8 @@ from utils.points import Point2D, Point3D
 _CELL_SIZE = (5000, 5000)
 _REGION_CENTER = Point2D(0, 26000)
 _MAX_DISTANCE = 40000
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _compute_centers(
@@ -97,6 +103,129 @@ class Deploy(commands.GroupCog, group_name="deploy"):
         await interaction.response.send_message(
             response, file=galaxy_map, ephemeral=True
         )
+
+        _LOGGER.info("Created deployment map for %s", interaction.user.name)
+
+    @app_commands.command(  # type: ignore [arg-type]
+        name="add",
+        description="Register a new depot.",
+    )
+    @app_commands.describe(
+        callsign="Callsign of depot.",
+        owner="Owner of depot.",
+        system="Deploy system.",
+        reserve="Minimum tritium before refuel.",
+        capacity="Maximum tritium capacity.",
+        state="Status of depot.",
+    )
+    @app_commands.choices(
+        state=[
+            Choice(name="Active", value=1),
+            Choice(name="Inactive", value=0),
+        ],
+    )
+    async def add(
+        self,
+        interaction: Interaction[Client],
+        callsign: str,
+        owner: User,
+        system: str,
+        reserve: int,
+        capacity: int,
+        state: Choice[int],
+    ) -> None:
+        """Register a new depot."""
+        await interaction.response.defer(ephemeral=True)
+
+        depot = DEPOT_SERVICE.carriers.find(callsign)
+        if depot:
+            response = f"## :x: Duplicate Depot :x:\n`{depot}` is already registered with STAR.\n"
+            await interaction.followup.send(response, ephemeral=True)
+            return
+
+        deploy_system = await edsm.system(system)
+        if not deploy_system:
+            response = f"## :x: Missing System :x:\nSystem `{system}` is not on EDSM.\n"
+            await interaction.followup.send(response, ephemeral=True)
+            return
+
+        data = await inara.search(callsign)
+        if not data:
+            response = f"## :x: Bad Depot :x:\nCould not find depot: `{callsign}`\n"
+            await interaction.followup.send(response, ephemeral=True)
+            return
+
+        name, current_system_name, inara_id = data
+        current_system = await edsm.system(current_system_name)
+
+        if not current_system:
+            response = f"## :x: Missing System :x:\nSystem `{current_system}` is not on EDSM.\n"
+            await interaction.followup.send(response, ephemeral=True)
+            return
+
+        market_id = await edsm.market_id(callsign, current_system.name)
+        if not market_id:
+            response = f"## :x: Missing Depot :x:\nDepot `[{callsign}] {name}` is not on EDSM.\n"
+            await interaction.followup.send(response, ephemeral=True)
+            return
+
+        market, current_system, update = await edsm.overview(market_id, timestamp=True)
+        assert update
+        carrier = Carrier(
+            name=callsign,
+            system=current_system,
+            market=market,
+            market_id=market_id,
+            inara_url=f"https://inara.cz/station/{inara_id}",
+            last_update=update,
+            display_name=name,
+            deploy_system=deploy_system,
+            reserve_tritium=reserve,
+            allocated_space=capacity,
+            owner_discord_id=owner.id,
+            active_depot=bool(state.value),
+            capi_status=CAPI_SERVICE.get_state(callsign),
+            restock_status=None,
+        )
+
+        DEPOT_SERVICE.carriers.add(carrier)
+        await DEPOT_SERVICE.push()
+
+        response = (
+            "# :passport_control: Registration :passport_control:\n"
+            + "## Core :construction_site:\n"
+            + f"**Depot:**  `[{carrier.name}] {carrier.display_name}`\n"
+            + f"**System:**  `{carrier.system}`\n"
+            + f"**Owner:**  <@{carrier.owner_discord_id}>\n"
+            + f"**Update:**  <t:{int(carrier.last_update.timestamp())}:R>\n"
+        )
+
+        if carrier.tritium:
+            if carrier.tritium.demand.quantity > 0:
+                good = carrier.tritium.demand
+                market = "Buying"
+            else:
+                good = carrier.tritium.stock
+                market = "Selling"
+
+            response += (
+                "## Market :chart_with_upwards_trend:\n"
+                + f"**Tritium:**  `{good.quantity:,}t`\n"
+                + f"**Price:**  `{good.price:,}cr/t`\n"
+                + f"**Market:**  `{market}`\n"
+            )
+        else:
+            response += "**Market:** `Not Stocked`\n"
+
+        response += (
+            "## Technical :robot:\n"
+            + f"**Identifier:**  `{carrier.market_id}`\n"
+            + f"**Reserve:**  `{carrier.reserve_tritium:,}t`\n"
+            + f"**Allocated:**  `{carrier.allocated_space:,}t`\n"
+            + f"**Syncing:**  `{CAPI_SERVICE.get_state(carrier.name)}`\n"
+        )
+
+        await interaction.followup.send(response, ephemeral=True)
 
 
 def main() -> None:

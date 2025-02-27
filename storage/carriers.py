@@ -175,7 +175,30 @@ async def push_carriers(carriers: list[Carrier]) -> None:
     if not set(_CARRIER_CHECKS.keys()).issubset(headers):
         raise ValueError("Cannot push carriers due to header mismatch.")
 
+    new_rows = 0
     for carrier in carriers:
+        if carrier.name not in (row[headers.index("ID")] for row in sheet[1::]):
+            new_row: list[str | float | None] = [""] * len(sheet[0])
+            new_row[headers.index("ID")] = carrier.name
+            new_row[headers.index("Name")] = carrier.display_name
+
+            assert carrier.deploy_system.location
+            new_row[headers.index("Deploy System")] = carrier.deploy_system.name
+            new_row[headers.index("X")] = carrier.deploy_system.location.x
+            new_row[headers.index("Y")] = carrier.deploy_system.location.y
+            new_row[headers.index("Z")] = carrier.deploy_system.location.z
+
+            new_row[headers.index("Reserve")] = carrier.reserve_tritium
+            new_row[headers.index("Allocated")] = carrier.allocated_space
+            new_row[headers.index("Contact")] = str(carrier.owner_discord_id)
+
+            new_row[headers.index("URL")] = carrier.inara_url
+            new_row[headers.index("Market ID")] = carrier.market_id
+            new_row[headers.index("Active")] = carrier.active_depot
+
+            new_rows += 1
+            sheet.append(new_row)
+
         for row in sheet[1::]:
             if row[headers.index("ID")] != carrier.name:
                 continue
@@ -204,5 +227,8 @@ async def push_carriers(carriers: list[Carrier]) -> None:
             row[headers.index("Update")] = int(carrier.last_update.timestamp())
             row[headers.index("Current System")] = carrier.system.name
             row[headers.index("Colour")] = str(carrier.colour)
+
+    if new_rows:
+        await SPREADSHEET.async_add_row("Carrier", new_rows)
 
     await SPREADSHEET.async_push()

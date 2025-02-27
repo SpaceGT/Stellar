@@ -1,8 +1,10 @@
 """Allows scraping limited data from INARA"""
 
+import json
 import re
 from datetime import datetime, timezone
 from typing import Any
+from urllib import parse
 
 from aiohttp import ClientSession
 from bs4 import BeautifulSoup, Tag
@@ -11,10 +13,10 @@ from common import Good
 from settings import SOFTWARE
 
 _TIMEOUT = 60
-_URL = "https://inara.cz/elite"
+_URL = "https://inara.cz/"
 
 
-async def _request(url: str) -> BeautifulSoup:
+async def _request(url: str) -> str:
     headers = {"User-Agent": SOFTWARE.user_agent}
 
     async with (
@@ -23,11 +25,12 @@ async def _request(url: str) -> BeautifulSoup:
     ):
         content = await response.text()
 
-    return BeautifulSoup(content, "lxml")
+    return content
 
 
 async def _market(inara_id: int) -> dict[str, Any]:
-    soup = await _request(f"/station-market/{inara_id}/")
+    response = await _request(f"elite/station-market/{inara_id}/")
+    soup = BeautifulSoup(response, "lxml")
 
     # Scrape system info
     system = soup.find("a", href=re.compile(r"/elite/starsystem/\d+/"))
@@ -113,3 +116,40 @@ async def overview(inara_id: int) -> tuple[list[Good], str, datetime]:
     ]
 
     return market, response["system"], response["update"]
+
+
+async def search(callsign: str) -> tuple[str, str, int] | None:
+    """
+    Search for a carrier by callsign.
+    Returns (name, system and ID) or None if unregistered.
+    """
+
+    if not re.match(r"^[A-Z0-9]{3}-[A-Z0-9]{3}$", callsign, re.MULTILINE):
+        return None
+
+    response = await _request(
+        f"sites/elite/ajaxsearch.php?type=GlobalSearch&term={callsign}"
+    )
+
+    for data in json.loads(response):
+        if data["value"] == "[submitform]":
+            continue
+
+        name, system = data["value"].split(" | ")
+
+        if not re.search(r" \([A-Z0-9]{3}-[A-Z0-9]{3}\)$", name, re.MULTILINE):
+            continue
+
+        display_name = name[:-10]
+
+        soup = BeautifulSoup(data["label"], "lxml")
+        link = soup.find("a").get("href")
+        assert isinstance(link, str)
+
+        parsed = parse.urlparse(link)
+        parts = parsed.path.split("/")
+        station_id = int(parts[3])
+
+        return display_name, system, station_id
+
+    return None

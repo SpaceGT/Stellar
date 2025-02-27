@@ -126,3 +126,17 @@ async def overview(
     assert system_info
 
     return market_, system_info, update
+
+
+async def market_id(callsign: str, system: str) -> int | None:
+    """Return the Market ID of a carrier."""
+    id_response = await _request(f"{_SYSTEM_URL}?systemName={system}&showId=1")
+    if not id_response:
+        return None
+
+    system_response = await _system(id_response["id"])
+    for station in system_response["stations"]:
+        if station["name"] == callsign:
+            return station["marketId"]
+
+    return None

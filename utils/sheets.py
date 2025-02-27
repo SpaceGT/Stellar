@@ -2,16 +2,21 @@
 
 import asyncio
 import copy
+import logging
 import typing
+from collections.abc import Iterator
 from pathlib import Path
 from re import Pattern
 from types import UnionType
-from typing import Any, Iterator
+from typing import Any
 
 from google.auth.transport.requests import Request  # type: ignore [import-untyped]
 from google.oauth2.credentials import Credentials  # type: ignore [import-untyped]
 from google_auth_oauthlib.flow import InstalledAppFlow  # type: ignore [import-untyped]
-from googleapiclient.discovery import build  # type: ignore [import-untyped]
+from googleapiclient.discovery import build
+from googleapiclient.http import HttpError  # type: ignore [import-untyped]
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def implicit_cast(value: Any, _type: type) -> Any:
@@ -240,26 +245,35 @@ class GoogleSheet:
         else:
             raise ValueError
 
-        spreadsheet = sheets.get(spreadsheetId=self._spreadsheet_id).execute()
+        try:
+            spreadsheet = sheets.get(spreadsheetId=self._spreadsheet_id).execute()
 
-        for sheet in spreadsheet["sheets"]:
-            title = sheet["properties"]["title"]
+            for sheet in spreadsheet["sheets"]:
+                title = sheet["properties"]["title"]
 
-            values = (
-                sheets.values()
-                .get(
-                    spreadsheetId=self._spreadsheet_id,
-                    valueRenderOption="UNFORMATTED_VALUE",
-                    range=title,
+                values = (
+                    sheets.values()
+                    .get(
+                        spreadsheetId=self._spreadsheet_id,
+                        valueRenderOption="UNFORMATTED_VALUE",
+                        range=title,
+                    )
+                    .execute()
+                    .get("values", [])
                 )
-                .execute()
-                .get("values", [])
-            )
 
-            self._remote_data |= {f"{title}": values}
+                self._remote_data |= {f"{title}": values}
 
-        self._local_data = copy.deepcopy(self._remote_data)
-        self._loaded = True
+        except HttpError as error:
+            if error.status_code in (500, 503):
+                _LOGGER.warning("Pull failed due to unavailable sheet.")
+            else:
+                raise error
+        except TimeoutError:
+            _LOGGER.warning("Pull failed to socket timeout.")
+        else:
+            self._local_data = copy.deepcopy(self._remote_data)
+            self._loaded = True
 
     async def async_pull(self) -> None:
         """Asynchronously fetch the latest version of the Google Sheet."""
@@ -292,13 +306,71 @@ class GoogleSheet:
         else:
             raise ValueError
 
-        sheets.values().batchUpdate(
-            spreadsheetId=self._spreadsheet_id, body=request_body
-        ).execute()
-
-        self._remote_data = copy.deepcopy(self._local_data)
+        try:
+            sheets.values().batchUpdate(
+                spreadsheetId=self._spreadsheet_id, body=request_body
+            ).execute()
+        except HttpError as error:
+            if error.status_code in (500, 503):
+                _LOGGER.warning("Push failed due to unavailable sheet.")
+            else:
+                raise error
+        except TimeoutError:
+            _LOGGER.warning("Push failed to socket timeout.")
+        else:
+            self._remote_data = copy.deepcopy(self._local_data)
 
     async def async_push(self) -> None:
         """Asynchronously push all the changes to the Google Sheet."""
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, self.push)
+
+    def add_row(self, sheet_name: str, count: int = 1) -> None:
+        """Creates a new row at the bottom of the sheet."""
+
+        service = build(
+            "sheets", "v4", credentials=self._credentials, cache_discovery=False
+        )
+
+        if hasattr(service, "spreadsheets"):
+            sheets = service.spreadsheets()
+        else:
+            raise ValueError
+
+        try:
+            spreadsheet = sheets.get(spreadsheetId=self._spreadsheet_id).execute()
+
+            sheet_id = None
+            for sheet in spreadsheet["sheets"]:
+                if sheet["properties"]["title"] == sheet_name:
+                    sheet_id = sheet["properties"]["sheetId"]
+            assert sheet_id is not None
+
+            request_body = {
+                "requests": [
+                    {
+                        "appendDimension": {
+                            "sheetId": sheet_id,
+                            "dimension": "ROWS",
+                            "length": count,
+                        }
+                    }
+                ]
+            }
+
+            sheets.batchUpdate(
+                spreadsheetId=self._spreadsheet_id, body=request_body
+            ).execute()
+
+        except HttpError as error:
+            if error.status_code in (500, 503):
+                _LOGGER.warning("Row creation failed due to unavailable sheet.")
+            else:
+                raise error
+        except TimeoutError:
+            _LOGGER.warning("Row creation failed to socket timeout.")
+
+    async def async_add_row(self, sheet_name: str, count: int = 1) -> None:
+        """Asynchronously create a new row at the bottom of the sheet."""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self.add_row, sheet_name, count)

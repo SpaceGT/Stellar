@@ -114,6 +114,10 @@ class _Carriers:
 
         return output
 
+    def add(self, carrier: Carrier) -> None:
+        """Add a new carrier to the collection."""
+        self._carriers.add(carrier)
+
 
 class _Bridges:
     def __init__(self, depots: Iterable[Bridge]) -> None:
