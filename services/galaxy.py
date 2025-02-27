@@ -19,6 +19,7 @@ class Gradient(Enum):
 
     GREEN = ("#78CC78", "#53BE53")
     BLUE = ("#02ADFC", "#02D6FC")
+    RED = ("#F44343", "#F33939")
 
 
 class Colour(Enum):

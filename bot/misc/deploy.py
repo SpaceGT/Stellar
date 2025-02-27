@@ -3,7 +3,7 @@
 import logging
 
 from discord import Client, File, Interaction, User, app_commands
-from discord.app_commands import Choice
+from discord.app_commands import Choice, Range
 from discord.ext import commands
 
 from bot.core import CLIENT
@@ -39,8 +39,11 @@ def _compute_centers(
     return points
 
 
-def _get_most_isolated() -> Point2D:
-    """Return the center point furthest away from all depots."""
+def _get_most_isolated(depot_locations: list[Point3D] | None = None) -> Point2D:
+    """
+    Return the center point furthest away from all depots.
+    Optionally accepts additional depot locations.
+    """
     points: list[tuple[Point2D, float]] = []
 
     for point in _compute_centers():
@@ -52,6 +55,19 @@ def _get_most_isolated() -> Point2D:
             for depot in DEPOT_SERVICE.carriers
             if depot.active_depot and depot.deploy_system.location
         )
+
+        if depot_locations:
+            closest_depot_distance = min(
+                closest_depot_distance,
+                min(
+                    Point2D(
+                        x=location.x,
+                        y=location.z,
+                    ).distance(point)
+                    for location in depot_locations
+                ),
+            )
+
         points.append((point, closest_depot_distance))
 
     return max(points, key=lambda x: x[1])[0]
@@ -64,13 +80,20 @@ class Deploy(commands.GroupCog, group_name="deploy"):
         name="view",
         description="View the next recommended deployment location.",
     )
-    async def view(self, interaction: Interaction[Client]) -> None:
+    @app_commands.describe(
+        levels="Assume the first n locations are occupied.",
+    )
+    async def view(
+        self,
+        interaction: Interaction[Client],
+        levels: Range[int, 0, 99] | None = None,
+    ) -> None:
         "View the next recommended deployment cell."
+        await interaction.response.defer(ephemeral=True)
         centers = [Point3D(center.x, 0, center.y) for center in _compute_centers()]
-        target = _get_most_isolated()
-        target = Point3D(target.x, 0, target.y)
 
         galaxy = Galaxy()
+        galaxy.add_cells(centers, Colour.BLUE, _CELL_SIZE)
         galaxy.add_points(
             [
                 depot.deploy_system.location
@@ -79,9 +102,24 @@ class Deploy(commands.GroupCog, group_name="deploy"):
             ],
             Gradient.GREEN,
         )
-        galaxy.add_point(target, Gradient.BLUE)
-        galaxy.add_cells(centers, Colour.BLUE, _CELL_SIZE)
 
+        target: Point3D | Point2D | None = None
+        previous: list[Point3D] = []
+        levels = levels or 0
+
+        for _ in range(levels + 1):
+            target = _get_most_isolated(previous)
+            target = Point3D(target.x, 0, target.y)
+
+            if len(previous) < levels:
+                colour = Gradient.RED
+                previous.append(target)
+            else:
+                colour = Gradient.BLUE
+
+            galaxy.add_point(target, colour)
+
+        assert isinstance(target, Point3D)
         with galaxy.render() as gal_map:
             galaxy_map = File(gal_map, filename="image.png")
 
@@ -100,9 +138,7 @@ class Deploy(commands.GroupCog, group_name="deploy"):
         else:
             response += f" (`{distance:.0f}ly`)"
 
-        await interaction.response.send_message(
-            response, file=galaxy_map, ephemeral=True
-        )
+        await interaction.followup.send(response, file=galaxy_map, ephemeral=True)
 
         _LOGGER.info("Created deployment map for %s", interaction.user.name)
 
@@ -226,6 +262,7 @@ class Deploy(commands.GroupCog, group_name="deploy"):
         )
 
         await interaction.followup.send(response, ephemeral=True)
+        _LOGGER.info("'%s' has been enlisted for '%s'", carrier, deploy_system)
 
 
 def main() -> None:
