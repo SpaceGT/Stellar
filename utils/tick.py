@@ -2,8 +2,11 @@
 
 import asyncio
 import datetime as dt
+import logging
 from datetime import datetime
 from typing import Awaitable, Callable
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def sleep_until(date: datetime) -> None:
@@ -17,6 +20,7 @@ async def run_daily(
     function: Callable[[], Awaitable[None]],
 ) -> asyncio.Task:
     """Run a function at a given time each day."""
+    name = f"{function.__name__}-{time.strftime('%H:%M')}"
 
     async def task():
         while True:
@@ -27,9 +31,10 @@ async def run_daily(
                 target += dt.timedelta(days=1)
 
             await sleep_until(target)
-            await function()
 
-    return asyncio.create_task(
-        task(),
-        name=f"{time.strftime('%H:%M')} Daily ({function.__name__})",
-    )
+            try:
+                await function()
+            except Exception:
+                _LOGGER.exception("Error when performing %s", name)
+
+    return asyncio.create_task(task(), name=name)
