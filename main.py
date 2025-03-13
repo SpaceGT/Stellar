@@ -79,13 +79,18 @@ async def tick() -> None:
 
     await CAPI_SERVICE.update()
 
+    for data in CAPI_SERVICE.get_data():
+        if data.carrier and not data.access_token:
+            depot = DEPOT_SERVICE.carriers.find(data.carrier)
+            internal = bool(depot and depot.active_depot)
+
+            await capi.write_capi_alert(
+                data.discord_id, data.commander, data.auth_type, internal
+            )
+
     for carrier in DEPOT_SERVICE.carriers:
         if not carrier.active_depot:
             continue
-
-        data = CAPI_SERVICE.get_data().find_carrier(carrier.name)
-        if data and not data.access_token:
-            await capi.write_capi_alert(data.discord_id, data.commander, data.auth_type)
 
         if datetime.now(timezone.utc) - carrier.last_update > TIMINGS.market_warning:
             await restock.write_market_alert(

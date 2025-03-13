@@ -22,9 +22,12 @@ def _get_alert() -> TextChannel:
     return channel
 
 
-async def write_capi_alert(discord_id: int, commander: str, auth_type: str) -> None:
+async def write_capi_alert(
+    discord_id: int, commander: str, auth_type: str, internal: bool = True
+) -> None:
     """Notify a user of their expired CAPI token."""
     assert CLIENT.user
+    assert CLIENT.application
 
     channel = _get_alert()
     owner = await channel.guild.fetch_member(discord_id)
@@ -40,27 +43,44 @@ async def write_capi_alert(discord_id: int, commander: str, auth_type: str) -> N
     ):
         return
 
-    if auth_type == Service.EPIC:
-        message = (
-            f"<@{discord_id}> your CAPI token for `{commander}` could not be refreshed.\n"
-            + f"- This is a problem with `{Service.EPIC}` (not {CLIENT.user.mention})\n"
-            + "- Try running `Elite Dangerous` during your next attempt\n\n"
-            + f"Please run `/capi` in `{guild.name}` and re-auth.\n"
-        )
-        _LOGGER.info("Sending CAPI Epic warning '%s' to %s", commander, owner.name)
+    if internal:
+        if auth_type == Service.EPIC:
+            message = (
+                f"<@{discord_id}> your CAPI token for `{commander}` could not be refreshed.\n"
+                + f"- This is a problem with `{Service.EPIC}` (not {CLIENT.user.mention})\n"
+                + "- Try running `Elite Dangerous` during your next attempt\n\n"
+                + f"Please run `/capi` in `{guild.name}` and re-auth.\n"
+            )
+            _LOGGER.info("Sending CAPI Epic warning '%s' to %s", commander, owner.name)
+        else:
+            message = (
+                f"<@{discord_id}> your CAPI token for `{commander}` could not be refreshed.\n"
+                + f"Please run `/capi` in `{guild.name}` and re-auth.\n"
+            )
+            _LOGGER.info(
+                "Sending CAPI token warning for '%s' to %s", commander, owner.name
+            )
     else:
         message = (
             f"<@{discord_id}> your CAPI token for `{commander}` could not be refreshed.\n"
             + f"Please run `/capi` in `{guild.name}` and re-auth.\n"
+            + f"Contact {CLIENT.application.owner.mention} to permanently unlink your account.\n"
         )
-        _LOGGER.info("Sending CAPI token warning for '%s' to %s", commander, owner.name)
+        _LOGGER.info(
+            "Sending external CAPI token warning for '%s' to %s", commander, owner.name
+        )
 
     try:
         await owner.send(message)
+
     except discord.Forbidden:
-        _LOGGER.warning(
-            "Falling back to %s as %s could not be DMed",
-            channel.name,
-            owner.name,
-        )
-        await channel.send(message)
+        if internal:
+            _LOGGER.warning(
+                "Falling back to %s as %s could not be DMed",
+                channel.name,
+                owner.name,
+            )
+            await channel.send(message)
+
+        else:
+            _LOGGER.error("Failed to DM %s", owner.name)
