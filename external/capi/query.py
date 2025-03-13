@@ -20,6 +20,10 @@ class EpicFail(Exception):
     """Raised when Epic fails to authenticate CAPI."""
 
 
+class CapiFail(Exception):
+    """Rasied when cAPI is down for maintenance."""
+
+
 class Endpoint(StrEnum):
     FLEET_CARRIER = "fleetcarrier"
     PROFILE = "profile"
@@ -40,6 +44,9 @@ async def _request(endpoint: Endpoint, headers: dict[str, str]) -> dict[str, Any
     ):
         if "purchase Elite: Dangerous" in await response.text():
             raise EpicFail
+
+        if response.status in (418, 500):
+            raise CapiFail
 
         response.raise_for_status()
 

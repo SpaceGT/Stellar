@@ -2,4 +2,6 @@
 
 from . import auth, query
 from .auth import GetEndpoint as AuthEndpoint
+from .query import CapiFail
 from .query import Endpoint as QueryEndpoint
+from .query import EpicFail

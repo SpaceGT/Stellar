@@ -9,7 +9,7 @@ from aiohttp import ClientResponseError
 
 from common import CapiData, Good
 from common.enums import Service, State
-from external.capi import auth, query
+from external.capi import CapiFail, EpicFail, auth, query
 from storage import capi
 from utils.events import AsyncEvent
 
@@ -96,11 +96,13 @@ class CapiService:
             if not data.carrier:
                 try:
                     response = await query.fleetcarrier(data.access_token[0])
-                except query.EpicFail:
+
+                except EpicFail:
                     data.access_token = None
                     _LOGGER.warning(
                         "Epic authentication failed for '%s'", data.commander
                     )
+
                 else:
                     if response:
                         _LOGGER.info(
@@ -127,10 +129,12 @@ class CapiService:
             access_token, refresh_token, expiry = await auth.get_refreshed_tokens(
                 info.refresh_token
             )
+
         except ClientResponseError:
             _LOGGER.warning("Failed to refresh CAPI token for '%s'", info.commander)
             info.access_token = None
             success = False
+
         else:
             _LOGGER.info("Refreshed CAPI tokens for '%s'", info.commander)
             info.access_token = (access_token, expiry)
@@ -192,8 +196,12 @@ class CapiService:
             await asyncio.sleep(delay.total_seconds())
             response = await query.fleetcarrier(access_token)
 
-        except query.EpicFail:
+        except EpicFail:
             _LOGGER.warning("Authentication failed due to Epic")
+            return False
+
+        except CapiFail:
+            _LOGGER.warning("Authentication failed due to cAPI")
             return False
 
         if response:
@@ -259,14 +267,18 @@ class CapiService:
 
         try:
             response = await query.fleetcarrier(info.access_token[0])
-        except query.EpicFail:
-            info.access_token = None
-            _LOGGER.warning("Epic authentication failed for '%s'", info.commander)
+        except (EpicFail, CapiFail) as error:
+            if isinstance(error, EpicFail):
+                info.access_token = None
+                _LOGGER.warning("Epic authentication failed for '%s'", info.commander)
+
+            else:
+                _LOGGER.warning("cAPI request failed for '%s'", info.commander)
 
             if not lazy:
                 await self.push()
 
-            return None
+            raise error
 
         if response is None:
             info.carrier = None

@@ -10,6 +10,7 @@ from aiohttp import ClientConnectionError
 
 from common.depots import Carrier
 from common.enums import State
+from external.capi import CapiFail, EpicFail
 from utils.events import AsyncEvent
 
 from ..depots import DEPOT_SERVICE
@@ -174,17 +175,42 @@ class CapiWorker:
 
             try:
                 response = await CAPI_SERVICE.fleetcarrier(carrier.name)
+
             except ClientConnectionError:
                 _LOGGER.warning("Worker retrying due to connection error.")
                 await asyncio.sleep(self._retry_delay())
                 continue
 
-            if isinstance(carrier, Carrier):
-                carrier.capi_status = CAPI_SERVICE.get_state(carrier.name)
+            except EpicFail:
+                _LOGGER.warning("Skipping '%s' due to Epic error.", str(carrier))
+                await asyncio.sleep(_DELAY.total_seconds())
+                continue
+
+            except CapiFail:
+                _LOGGER.warning("Worker retrying due to internal cAPI error.")
+                await asyncio.sleep(_INTERVAL.total_seconds())
+                continue
 
             if not response:
-                _LOGGER.warning("Worker failed to update '%s'", str(carrier))
+                _LOGGER.warning("Removing '%s' as it no longer exists.", str(carrier))
+
+                capi_data = CAPI_SERVICE.get_data().find_carrier(carrier.name)
+                assert capi_data
+                capi_data.carrier = None
+
+                if isinstance(carrier, Carrier):
+                    carrier.active_depot = False
+                else:
+                    self._cache.pop(carrier.name, None)
+
+                await CAPI_SERVICE.push()
+                await DEPOT_SERVICE.push()
+
+                await asyncio.sleep(_DELAY.total_seconds())
                 continue
+
+            if isinstance(carrier, Carrier):
+                carrier.capi_status = CAPI_SERVICE.get_state(carrier.name)
 
             await self.sync.fire(
                 name=(response[0][0], response[0][1]),
