@@ -16,6 +16,10 @@ _URL = "https://companion.orerve.net"
 _LOGGER = logging.getLogger(__name__)
 
 
+class TokenFail(Exception):
+    """Raised when using invalid or expired tokens."""
+
+
 class EpicFail(Exception):
     """Raised when Epic fails to authenticate CAPI."""
 
@@ -47,6 +51,9 @@ async def _request(endpoint: Endpoint, headers: dict[str, str]) -> dict[str, Any
 
         if response.status in (418, 500):
             raise CapiFail
+
+        if response.status == 401:
+            raise TokenFail
 
         response.raise_for_status()
 

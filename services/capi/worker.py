@@ -11,6 +11,7 @@ from aiohttp import ClientConnectionError
 from common.depots import Carrier
 from common.enums import State
 from external.capi import CapiFail, EpicFail
+from external.capi.auth import RefreshFail
 from utils.events import AsyncEvent
 
 from ..depots import DEPOT_SERVICE
@@ -39,8 +40,9 @@ class SimpleCarrier:
 class CapiWorker:
     """Updates depots through the Companion API."""
 
-    def __init__(self) -> None:
-        self.sync = AsyncEvent()
+    def __init__(self, use_epic: bool = False) -> None:
+        self.sync: AsyncEvent = AsyncEvent()
+        self.use_epic: bool = use_epic
 
         self._task: Task | None = None
         self._delays: tuple[int, datetime | None] = (0, None)
@@ -124,11 +126,10 @@ class CapiWorker:
             if DEPOT_SERVICE.carriers.find(callsign):
                 continue
 
-            if CAPI_SERVICE.get_state(callsign) != State.SYNCING:
-                continue
-
-            update = self._cache.get(callsign, datetime.now(timezone.utc))
-            carriers.append(SimpleCarrier(callsign, update))
+            state = CAPI_SERVICE.get_state(callsign)
+            if state == State.SYNCING or self.use_epic and state == State.PARTIAL:
+                update = self._cache.get(callsign, datetime.now(timezone.utc))
+                carriers.append(SimpleCarrier(callsign, update))
 
         return carriers
 
@@ -137,7 +138,8 @@ class CapiWorker:
         carriers: list[Carrier | SimpleCarrier] = []
 
         for carrier in DEPOT_SERVICE.carriers:
-            if CAPI_SERVICE.get_state(carrier.name) == State.SYNCING:
+            state = CAPI_SERVICE.get_state(carrier.name)
+            if state == State.SYNCING or self.use_epic and state == State.PARTIAL:
                 carriers.append(carrier)
 
         if external:
@@ -191,12 +193,13 @@ class CapiWorker:
                 await asyncio.sleep(_INTERVAL.total_seconds())
                 continue
 
-            if not response:
-                _LOGGER.warning("Removing '%s' as it no longer exists.", str(carrier))
+            except RefreshFail:
+                _LOGGER.warning("Skipping '%s' due to token expiry.", str(carrier))
+                await asyncio.sleep(_DELAY.total_seconds())
+                continue
 
-                capi_data = CAPI_SERVICE.get_data().find_carrier(carrier.name)
-                assert capi_data
-                capi_data.carrier = None
+            if not response:
+                _LOGGER.warning("Disabling '%s' as it no longer exists.", str(carrier))
 
                 if isinstance(carrier, Carrier):
                     carrier.active_depot = False

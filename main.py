@@ -47,6 +47,9 @@ def _load_args() -> Namespace:
     parser.add_argument(
         "--ephemeral", action="store_true", help="Exit instead of monitoring EDDN."
     )
+    parser.add_argument(
+        "--opportunistic", action="store_true", help="Refresh unreliable CAPI tokens."
+    )
     return parser.parse_args()
 
 
@@ -109,6 +112,12 @@ async def main() -> None:
     await RESCUE_SERVICE.pull(lazy=True)
     await RESTOCK_SERVICE.pull(lazy=True)
     await DEPOT_SERVICE.pull(lazy=True)
+
+    if args.opportunistic:
+        CAPI_SERVICE.use_epic = True
+        CAPI_SERVICE.retry_refresh = True
+        CAPI_WORKER.use_epic = True
+
     await CAPI_SERVICE.pull(lazy=True)
 
     if args.sync_tree:

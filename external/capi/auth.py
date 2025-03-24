@@ -19,6 +19,10 @@ _URL = "https://auth.frontierstore.net"
 _LOGGER = logging.getLogger(__name__)
 
 
+class RefreshFail(Exception):
+    """Raised when a token cannot be refreshed."""
+
+
 class GetEndpoint(StrEnum):
     DECODE = "decode"
     ME = "me"
@@ -33,11 +37,15 @@ async def _post_request(
 ) -> dict[str, Any]:
     url = f"{_URL}/{endpoint}"
     async with (
-        ClientSession(raise_for_status=True) as session,
+        ClientSession() as session,
         session.post(
             url, data=parse.urlencode(query), headers=headers, timeout=_TIMEOUT
         ) as response,
     ):
+        if response.status == 401:
+            raise RefreshFail
+
+        response.raise_for_status()
         data: dict[str, str | int] = await response.json()
 
     return data

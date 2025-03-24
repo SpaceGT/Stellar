@@ -9,7 +9,7 @@ from aiohttp import ClientResponseError
 
 from common import CapiData, Good
 from common.enums import Service, State
-from external.capi import CapiFail, EpicFail, auth, query
+from external.capi import CapiFail, EpicFail, RefreshFail, auth, query
 from storage import capi
 from utils.events import AsyncEvent
 
@@ -46,9 +46,12 @@ class _Data:
 class CapiService:
     """Communicates with the Companion API."""
 
-    def __init__(self) -> None:
-        self._data = _Data([])
-        self.sync = AsyncEvent()
+    def __init__(self, use_epic: bool = False, retry_refresh: bool = False) -> None:
+        self._data: _Data = _Data([])
+        self.sync: AsyncEvent = AsyncEvent()
+
+        self.use_epic: bool = use_epic
+        self.retry_refresh: bool = retry_refresh
 
     async def pull(self, lazy: bool = False) -> None:
         """Fetch the latest CAPI data."""
@@ -74,6 +77,9 @@ class CapiService:
         if not data.access_token:
             return State.EXPIRED
 
+        if data.auth_type == Service.EPIC:
+            return State.PARTIAL
+
         return State.SYNCING
 
     async def update(self, delay: timedelta = timedelta(seconds=5)) -> None:
@@ -84,24 +90,38 @@ class CapiService:
             if data.access_token and data.carrier:
                 continue
 
-            if not data.access_token:
+            if not data.access_token and self.retry_refresh:
                 success = await self._refresh_token(data.customer_id, lazy=True)
-                await asyncio.sleep(delay.total_seconds() / 1000)
+                await asyncio.sleep(delay.total_seconds())
 
                 if not success:
                     continue
 
-            assert data.access_token
+            if not data.carrier and (self.use_epic or data.auth_type != Service.EPIC):
+                if not data.access_token or data.access_token[1] < datetime.now(
+                    timezone.utc
+                ):
+                    success = await self._refresh_token(data.customer_id, lazy=True)
+                    await asyncio.sleep(delay.total_seconds())
 
-            if not data.carrier:
+                    if not success:
+                        continue
+
+                assert data.access_token
+
                 try:
                     response = await query.fleetcarrier(data.access_token[0])
 
                 except EpicFail:
-                    data.access_token = None
+                    data.auth_type = Service.EPIC
                     _LOGGER.warning(
                         "Epic authentication failed for '%s'", data.commander
                     )
+
+                except CapiFail:
+                    # Assume this is a Capi issue and not a per-request issue.
+                    _LOGGER.warning("Aborting update due to Capi error")
+                    break
 
                 else:
                     if response:
@@ -110,7 +130,8 @@ class CapiService:
                         )
                         data.carrier = response[0][0]
 
-            await asyncio.sleep(delay.total_seconds() / 1000)
+                finally:
+                    await asyncio.sleep(delay.total_seconds())
 
         _LOGGER.info("Finished CAPI update")
         await self.push()
@@ -130,7 +151,7 @@ class CapiService:
                 info.refresh_token
             )
 
-        except ClientResponseError:
+        except RefreshFail:
             _LOGGER.warning("Failed to refresh CAPI token for '%s'", info.commander)
             info.access_token = None
             success = False
@@ -254,7 +275,7 @@ class CapiService:
     ) -> tuple[tuple[str, str, int], list[Good], str] | None:
         """
         Get the (callsign, name, market_id), market and system of a carrier from CAPI.
-        Returns None if the carrier cannot be accessed.
+        Returns None if the commander does not have a carrier.
         """
 
         info = self._data.find_carrier(callsign)
@@ -263,13 +284,13 @@ class CapiService:
 
         if info.access_token[1] < datetime.now(timezone.utc):
             if not await self._refresh_token(info.customer_id, lazy):
-                return None
+                raise RefreshFail
 
         try:
             response = await query.fleetcarrier(info.access_token[0])
         except (EpicFail, CapiFail) as error:
             if isinstance(error, EpicFail):
-                info.access_token = None
+                info.auth_type = Service.EPIC
                 _LOGGER.warning("Epic authentication failed for '%s'", info.commander)
 
             else:

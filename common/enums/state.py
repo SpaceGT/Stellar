@@ -9,3 +9,4 @@ class State(StrEnum):
     UNLISTED = "Unlisted"
     EXPIRED = "Expired"
     SYNCING = "Syncing"
+    PARTIAL = "Partial"
