@@ -177,6 +177,7 @@ async def push_carriers(carriers: list[Carrier]) -> None:
 
     new_rows = 0
     for carrier in carriers:
+        # Add new carrier information
         if carrier.name not in (row[headers.index("ID")] for row in sheet[1::]):
             new_row: list[str | float | None] = [""] * len(sheet[0])
             new_row[headers.index("ID")] = carrier.name
@@ -203,6 +204,7 @@ async def push_carriers(carriers: list[Carrier]) -> None:
             if row[headers.index("ID")] != carrier.name:
                 continue
 
+            # Update variable carrier information
             tritium = carrier.tritium
 
             if tritium:
@@ -227,6 +229,22 @@ async def push_carriers(carriers: list[Carrier]) -> None:
             row[headers.index("Update")] = int(carrier.last_update.timestamp())
             row[headers.index("Current System")] = carrier.system.name
             row[headers.index("Colour")] = str(carrier.colour)
+
+            # Update static carrier information
+            row[headers.index("Name")] = carrier.display_name
+
+            assert carrier.deploy_system.location
+            row[headers.index("Deploy System")] = carrier.deploy_system.name
+            row[headers.index("X")] = carrier.deploy_system.location.x
+            row[headers.index("Y")] = carrier.deploy_system.location.y
+            row[headers.index("Z")] = carrier.deploy_system.location.z
+
+            row[headers.index("Reserve")] = carrier.reserve_tritium
+            row[headers.index("Allocated")] = carrier.allocated_space
+            row[headers.index("Contact")] = str(carrier.owner_discord_id)
+
+            row[headers.index("Market ID")] = carrier.market_id
+            row[headers.index("Active")] = carrier.active_depot
 
     if new_rows:
         await SPREADSHEET.async_add_row("Carrier", new_rows)

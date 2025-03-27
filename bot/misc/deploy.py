@@ -1,5 +1,6 @@
 """Allow managing depot deployments."""
 
+import asyncio
 import logging
 
 from discord import Client, File, Interaction, User, app_commands
@@ -7,9 +8,13 @@ from discord.app_commands import Choice, Range
 from discord.ext import commands
 
 from bot.core import CLIENT
-from common.depots import Carrier
+from common import Good, System
+from common.depots import CAPACITY, Carrier
+from common.enums import State
 from external import edsm, inara, spansh
+from external.capi import CapiFail, EpicFail, RefreshFail
 from services import CAPI_SERVICE, DEPOT_SERVICE, Colour, Galaxy
+from services.capi.utils import sync_carrier
 from services.galaxy import Gradient
 from settings import DISCORD
 from utils.points import Point2D, Point3D
@@ -166,8 +171,8 @@ class Deploy(commands.GroupCog, group_name="deploy"):
         callsign: str,
         owner: User,
         system: str,
-        reserve: int,
-        capacity: int,
+        reserve: Range[int, 0, CAPACITY - 1],
+        capacity: Range[int, 1, CAPACITY],
         state: Choice[int],
     ) -> None:
         """Register a new depot."""
@@ -263,6 +268,217 @@ class Deploy(commands.GroupCog, group_name="deploy"):
 
         await interaction.followup.send(response, ephemeral=True)
         _LOGGER.info("'%s' has been enlisted for '%s'", carrier, deploy_system)
+
+    @app_commands.command(  # type: ignore [arg-type]
+        name="update",
+        description="Update an existing depot.",
+    )
+    @app_commands.describe(
+        depot="Depot to update.",
+        state="Status of depot.",
+        market="Fetch market information from CAPI",
+        system="Deploy system.",
+        reserve="Minimum tritium before refuel.",
+        capacity="Maximum tritium capacity.",
+        owner="Owner of depot.",
+        name="Name of depot.",
+    )
+    @app_commands.choices(
+        state=[
+            Choice(name="Active", value=1),
+            Choice(name="Inactive", value=0),
+        ],
+        market=[
+            Choice(name="Yes", value=1),
+            Choice(name="No", value=0),
+        ],
+    )
+    async def update(
+        self,
+        interaction: Interaction[Client],
+        depot: str,
+        state: Choice[int] | None,
+        market: Choice[int] | None,
+        system: str | None,
+        reserve: Range[int, 0, CAPACITY - 1] | None,
+        capacity: Range[int, 1, CAPACITY] | None,
+        owner: User | None,
+        name: str | None,
+    ) -> None:
+        """Update an existing depot."""
+        await interaction.response.defer(ephemeral=True)
+
+        if len(depot) == 7:
+            callsign = depot.upper()
+        else:
+            callsign = depot[1:8]
+
+        carrier = DEPOT_SERVICE.carriers.find(callsign=callsign)
+
+        # Apply update atomically
+        if carrier is None:
+            response = f"## :x: Bad Depot :x:\nCould not find depot: `{depot}`"
+            await interaction.followup.send(response, ephemeral=True)
+            return
+
+        if not any((state, market, system, reserve, capacity, owner, name)):
+            response = f"## :x: Bad Update :x:\nPlease specify what you want to update."
+            await interaction.followup.send(response, ephemeral=True)
+            return
+
+        deploy_system: System | None = None
+        if system is not None:
+            deploy_system = await edsm.system(system)
+            if not deploy_system:
+                response = (
+                    f"## :x: Missing System :x:\nSystem `{system}` is not on EDSM."
+                )
+                await interaction.followup.send(response, ephemeral=True)
+                return
+
+        capi_response: tuple[tuple[str, str, int], list[Good], str] | None = None
+        if market is not None and bool(market.value):
+            carrier.capi_status = CAPI_SERVICE.get_state(carrier.name)
+
+            if carrier.capi_status == State.UNLISTED:
+                response = f"## :x: CAPI Fail :x:\nCarrier is not registered with CAPI."
+                await interaction.followup.send(response, ephemeral=True)
+                return
+
+            if carrier.capi_status == State.EXPIRED:
+                response = f"## :x: CAPI Fail :x:\nCould not refresh access token."
+                await interaction.followup.send(response, ephemeral=True)
+                return
+
+            try:
+                capi_response = await CAPI_SERVICE.fleetcarrier(carrier.name)
+            except (EpicFail, CapiFail, RefreshFail) as error:
+                if isinstance(error, EpicFail):
+                    response = (
+                        f"## :x: CAPI Fail :x:\nFailed to authenticate with Epic."
+                    )
+                elif isinstance(error, CapiFail):
+                    response = f"## :x: CAPI Fail :x:\nAn internal CAPI error occured."
+                else:
+                    response = f"## :x: CAPI Fail :x:\nCould not refresh access token."
+
+                await interaction.followup.send(response, ephemeral=True)
+                return
+
+            if capi_response is None:
+                response = f"## :x: Depot Decommissioned :x:\nDisabling `{carrier}` since it no longer exists."
+                await interaction.followup.send(response, ephemeral=True)
+
+                _LOGGER.warning("Disabling '%s' as it no longer exists.", str(carrier))
+                carrier.active_depot = False
+
+                await DEPOT_SERVICE.push()
+                return
+
+        # Update values after checks
+        _LOGGER.info("Editing '%s' for %s", str(carrier), interaction.user.name)
+        response = "## :clipboard: Depot Edited :clipboard:\n"
+
+        if deploy_system is not None:
+            response += (
+                f"**Deploy System:**  `{carrier.deploy_system}` -> `{deploy_system}`\n"
+            )
+            _LOGGER.info(
+                "Deploy System: '%s' -> '%s'", carrier.deploy_system, deploy_system
+            )
+            carrier.deploy_system = deploy_system
+
+        if state is not None:
+            response += f"**Active:**  `{str(carrier.active_depot).title()}` -> `{str(bool(state.value)).title()}`\n"
+            _LOGGER.info(
+                "Active: '%s' -> '%s'",
+                str(carrier.active_depot).title(),
+                str(bool(state.value)).title(),
+            )
+            carrier.active_depot = bool(state.value)
+
+        if reserve is not None:
+            response += (
+                f"**Reserve:**  `{carrier.reserve_tritium:,}` -> `{reserve:,}`\n"
+            )
+            _LOGGER.info(
+                "Reserve Tritium: '%s' -> '%s'", carrier.reserve_tritium, reserve
+            )
+            carrier.reserve_tritium = reserve
+
+        if capacity is not None:
+            response += (
+                f"**Capacity:**  `{carrier.allocated_space:,}` -> `{capacity:,}`\n"
+            )
+            _LOGGER.info(
+                "Allocated Space: '%s' -> '%s'", carrier.allocated_space, capacity
+            )
+            carrier.allocated_space = capacity
+
+        if owner is not None:
+            response += f"**Owner:**  <@{carrier.owner_discord_id}> -> <@{owner.id}>\n"
+            _LOGGER.info(
+                "Owner Discord Id: '%s' -> '%s'", carrier.owner_discord_id, owner.id
+            )
+            carrier.owner_discord_id = owner.id
+
+        if name is not None:
+            response += f"**Name:**  `[{carrier.name}] {carrier.display_name}` -> `[{carrier.name}] {name}`\n"
+            _LOGGER.info(
+                "Display Name: '[%s] %s' -> '[%s] %s'",
+                carrier.name,
+                carrier.display_name,
+                carrier.name,
+                name,
+            )
+            carrier.display_name = name
+
+        if capi_response is not None:
+            response += f"(Selling `{len(capi_response[1])}` commodities in `{capi_response[2]}`)\n"
+            _LOGGER.info("Fetched %s commodities from CAPI", len(capi_response[1]))
+            await sync_carrier(
+                name=(capi_response[0][0], capi_response[0][1]),
+                market_id=capi_response[0][2],
+                market=capi_response[1],
+                system=capi_response[2],
+            )
+
+        await DEPOT_SERVICE.push()
+        await interaction.followup.send(response, ephemeral=True)
+
+    @add.autocomplete("system")
+    @update.autocomplete("system")
+    async def system_autocomplete(
+        self,
+        _: Interaction[Client],
+        current: str,
+    ) -> list[Choice[str]]:
+        """Generate suggestions for target systems."""
+        if not current:
+            return []
+
+        choices: list[Choice[str]] = []
+
+        try:
+            systems = await asyncio.wait_for(spansh.predict_system(current), timeout=3)
+        except TimeoutError:
+            _LOGGER.warning("Could not find system suggestions for '%s'", current)
+        else:
+            choices = [
+                Choice(name=str(system), value=str(system)) for system in systems[:5]
+            ]
+
+        return choices
+
+    @update.autocomplete("depot")
+    async def depot_autocomplete(
+        self, _: Interaction[Client], current: str
+    ) -> list[Choice[str]]:
+        """Generate suggestions for target depots."""
+        return [
+            Choice(name=str(depot), value=str(depot))
+            for depot in DEPOT_SERVICE.carriers.search(current, inactive=True)[:5]
+        ]
 
 
 def main() -> None:

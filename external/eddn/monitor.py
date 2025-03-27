@@ -193,6 +193,7 @@ class Monitor:
             data["message"]["stationName"],
             data["message"]["systemName"],
             market,
+            data["message"]["marketId"],
             datetime.fromisoformat(
                 data["message"]["timestamp"].removesuffix("Z"),
             ).replace(tzinfo=timezone.utc),

@@ -8,14 +8,15 @@ from common.enums import Colour, Stage, State
 
 from .depot import Depot
 
+CAPACITY = 25000
+
 
 def stock_bracket(amount: int) -> Literal[0, 1, 2, 3]:
     """Calculate the stock bracket for a given tonnage."""
-    capacity = 25000
-    if amount >= capacity * 0.75:
+    if amount >= CAPACITY * 0.75:
         return 3
 
-    if amount >= capacity * 0.25:
+    if amount >= CAPACITY * 0.25:
         return 2
 
     if amount > 0:

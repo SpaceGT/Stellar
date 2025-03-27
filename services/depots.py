@@ -96,7 +96,7 @@ class _Carriers:
     def search(self, display_name: str, inactive: bool = False) -> list[Carrier]:
         """Return a confidence-ordered list of carriers based on a display name."""
         depots = [
-            depot for depot in self._carriers if depot.active_depot == (not inactive)
+            depot for depot in self._carriers if inactive or depot.active_depot
         ]
 
         if display_name == "":
@@ -188,9 +188,10 @@ class DepotService:
         station: str,
         system: str,
         market: list[Good],
+        market_id: int,
         timestamp: datetime,
     ) -> None:
-        """Subscribe to an EDDN commodity feed for automatic depot updates."""
+        """Subscribe to a data source for automatic depot updates."""
 
         depot = self.bridges.find(station) or self.carriers.find(station)
 
@@ -210,6 +211,8 @@ class DepotService:
 
         else:
             system_data = depot.system
+
+        depot.market_id = market_id
 
         await update_depot(depot, system_data, market, timestamp)
         await self.push()

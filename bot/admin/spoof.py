@@ -83,6 +83,7 @@ class Spoof(commands.GroupCog, group_name="spoof"):
             carrier.name,
             carrier.system.name,
             new_market,
+            carrier.market_id,
             datetime.now(timezone.utc),
         )
 

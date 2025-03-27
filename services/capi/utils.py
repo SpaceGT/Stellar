@@ -21,6 +21,7 @@ async def sync_carrier(
         station=name[0],
         system=system,
         market=market,
+        market_id=market_id,
         timestamp=timestamp,
     )
 
