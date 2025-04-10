@@ -10,6 +10,7 @@ from aiohttp import ClientResponseError
 from common import CapiData, Good
 from common.enums import Service, State
 from external.capi import CapiFail, EpicFail, RefreshFail, auth, query
+from settings import CAPI
 from storage import capi
 from utils.events import AsyncEvent
 
@@ -46,12 +47,9 @@ class _Data:
 class CapiService:
     """Communicates with the Companion API."""
 
-    def __init__(self, use_epic: bool = False, retry_refresh: bool = False) -> None:
+    def __init__(self) -> None:
         self._data: _Data = _Data([])
         self.sync: AsyncEvent = AsyncEvent()
-
-        self.use_epic: bool = use_epic
-        self.retry_refresh: bool = retry_refresh
 
     async def pull(self, lazy: bool = False) -> None:
         """Fetch the latest CAPI data."""
@@ -90,14 +88,14 @@ class CapiService:
             if data.access_token and data.carrier:
                 continue
 
-            if not data.access_token and self.retry_refresh:
+            if not data.access_token and CAPI.retry_refresh:
                 success = await self._refresh_token(data.customer_id, lazy=True)
                 await asyncio.sleep(delay.total_seconds())
 
                 if not success:
                     continue
 
-            if not data.carrier and (self.use_epic or data.auth_type != Service.EPIC):
+            if not data.carrier and (CAPI.use_epic or data.auth_type != Service.EPIC):
                 if not data.access_token or data.access_token[1] < datetime.now(
                     timezone.utc
                 ):

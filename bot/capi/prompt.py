@@ -2,17 +2,22 @@
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 import discord
 from discord import Client
 from discord.ui import Modal, TextInput
 
+from common.capi import CapiData
+from common.depots import Carrier
 from common.enums import Service
 from external.capi import auth
-from services import CAPI_SERVICE, DEPOT_SERVICE
+from services import CAPI_SERVICE, CAPI_WORKER, DEPOT_SERVICE
+from services.capi.worker import _INTERVAL
 from settings import CAPI
 
 _LOGGER = logging.getLogger(__name__)
+_START_DATE = datetime.now(timezone.utc)
 
 _SYNCING = """
 # :link: Frontier Companion API :link:
@@ -37,16 +42,23 @@ def carrier_overview(discord_id: int, owner_mention: str) -> str:
     """Creates an overview message for a user's connected carriers"""
     message = ["# :link: Frontier Companion API :link:"]
 
-    for carrier in DEPOT_SERVICE.carriers:
-        if carrier.owner_discord_id != discord_id:
+    internal: list[tuple[CapiData, Carrier]] = []
+    external: list[CapiData] = []
+
+    for info in CAPI_SERVICE.get_data():
+        if info.discord_id != discord_id:
             continue
 
-        # Use `get_state` in the future.
-        # You will need to store the commander name as a carrier field.
-        info = CAPI_SERVICE.get_data().find_carrier(carrier.name)
-        if not info:
+        if not info.carrier:
             continue
 
+        carrier = DEPOT_SERVICE.carriers.find(callsign=info.carrier)
+        if carrier:
+            internal.append((info, carrier))
+        else:
+            external.append(info)
+
+    for info, carrier in internal:
         carrier_message = [f"## `{info.commander}` - `{carrier}`"]
 
         if not info.access_token:
@@ -70,12 +82,36 @@ def carrier_overview(discord_id: int, owner_mention: str) -> str:
 
         message.extend(carrier_message)
 
-    if len(message) == 1:
-        message += [
-            ":white_check_mark: Frontier account linked successfully.",
+    if internal and external:
+        message.append("## :cloud: External :cloud:")
+
+    for info in external:
+        carrier_message = f"`{info.commander}` - "
+
+        if info.carrier:
+            carrier_message += f"`[{info.carrier}]`"
+        else:
+            carrier_message += f"`No Carrier`"
+
+        if not info.access_token:
+            carrier_message += f"  (Expired)"
+
+        # Store external carriers as full objects in the future.
+        # Currently only their update time is stored and this is fetched
+        # from the worker's internal cache (has some quirks).
+        elif info.carrier and (datetime.now(timezone.utc) - _START_DATE) > _INTERVAL:
+            last_update = CAPI_WORKER._cache[info.carrier]
+            carrier_message += f"  <t:{int(last_update.timestamp())}:R>"
+
+        message.append(carrier_message)
+
+    if not internal:
+        footer = [
+            "",
             ":cloud: Market synced with third party apps.",
-            f":ship: Contact {owner_mention} to become a depot.",
+            f":tools: Contact {owner_mention} to delist an account.",
         ]
+        message.extend(footer)
 
     return "\n".join(message)
 

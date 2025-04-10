@@ -43,7 +43,7 @@ class Carrier(Depot):
         return f"[{self.name}] {self.display_name}"
 
     def __hash__(self) -> int:
-        return hash((self.name, self.display_name))
+        return hash(self.name)
 
     @property
     def colour(self) -> Colour:

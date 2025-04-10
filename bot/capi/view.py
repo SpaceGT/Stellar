@@ -5,6 +5,8 @@ import copy
 from discord import ButtonStyle, Client, Interaction
 from discord.ui import Button, View
 
+from settings import CAPI
+
 from .prompt import Prompt
 
 
@@ -24,6 +26,13 @@ class CapiView(View):
         url="https://auth.frontierstore.net/",
     )
 
+    manage: Button = Button(
+        label="Manage",
+        style=ButtonStyle.grey,
+        emoji="\U0001f50d",
+        url="https://auth.frontierstore.net/",
+    )
+
     def __init__(self, prompt: Prompt, auth_url: str) -> None:
         super().__init__(timeout=180)
         self.prompt = prompt
@@ -40,8 +49,13 @@ class CapiView(View):
         setattr(connect, "callback", self.url_prompt)
         self.add_item(connect)
 
-        refresh: Button = copy.deepcopy(CapiView.refresh)
-        self.add_item(refresh)
+        frontier: Button
+        if CAPI.retry_refresh:
+            frontier = copy.deepcopy(CapiView.refresh)
+        else:
+            frontier = copy.deepcopy(CapiView.manage)
+
+        self.add_item(frontier)
 
     async def url_prompt(self, interaction: Interaction[Client]) -> None:
         """Open a prompt for entering the URL with the CAPI code."""

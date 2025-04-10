@@ -20,7 +20,7 @@ from services import (
     RESCUE_SERVICE,
     RESTOCK_SERVICE,
 )
-from settings import DISCORD, TIMINGS
+from settings import CAPI, DISCORD, TIMINGS
 from storage.sheet import SPREADSHEET
 from utils import tick as asynctick
 
@@ -114,9 +114,8 @@ async def main() -> None:
     await DEPOT_SERVICE.pull(lazy=True)
 
     if args.opportunistic:
-        CAPI_SERVICE.use_epic = True
-        CAPI_SERVICE.retry_refresh = True
-        CAPI_WORKER.use_epic = True
+        object.__setattr__(CAPI, "use_epic", True)
+        object.__setattr__(CAPI, "retry_refresh", True)
 
     await CAPI_SERVICE.pull(lazy=True)
 

@@ -12,6 +12,7 @@ from common.depots import Carrier
 from common.enums import State
 from external.capi import CapiFail, EpicFail
 from external.capi.auth import RefreshFail
+from settings import CAPI
 from utils.events import AsyncEvent
 
 from ..depots import DEPOT_SERVICE
@@ -40,9 +41,8 @@ class SimpleCarrier:
 class CapiWorker:
     """Updates depots through the Companion API."""
 
-    def __init__(self, use_epic: bool = False) -> None:
+    def __init__(self) -> None:
         self.sync: AsyncEvent = AsyncEvent()
-        self.use_epic: bool = use_epic
 
         self._task: Task | None = None
         self._delays: tuple[int, datetime | None] = (0, None)
@@ -127,7 +127,7 @@ class CapiWorker:
                 continue
 
             state = CAPI_SERVICE.get_state(callsign)
-            if state == State.SYNCING or self.use_epic and state == State.PARTIAL:
+            if state == State.SYNCING or CAPI.use_epic and state == State.PARTIAL:
                 update = self._cache.get(callsign, datetime.now(timezone.utc))
                 carriers.append(SimpleCarrier(callsign, update))
 
@@ -139,7 +139,7 @@ class CapiWorker:
 
         for carrier in DEPOT_SERVICE.carriers:
             state = CAPI_SERVICE.get_state(carrier.name)
-            if state == State.SYNCING or self.use_epic and state == State.PARTIAL:
+            if state == State.SYNCING or CAPI.use_epic and state == State.PARTIAL:
                 carriers.append(carrier)
 
         if external:

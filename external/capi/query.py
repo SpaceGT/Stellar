@@ -49,7 +49,7 @@ async def _request(endpoint: Endpoint, headers: dict[str, str]) -> dict[str, Any
         if "purchase Elite: Dangerous" in await response.text():
             raise EpicFail
 
-        if response.status in (418, 500):
+        if response.status in (418, 500, 502):
             raise CapiFail
 
         if response.status == 401:

@@ -92,8 +92,12 @@ def oauth_data() -> dict[str, str]:
     challenge = _encode(hashlib.sha256(seed).digest())
     state = _encode(os.urandom(32))
 
+    audience = ["frontier", "steam"]
+    if CAPI.use_epic:
+        audience.append("epic")
+
     query = {
-        "audience": ",".join(("frontier", "steam", "epic")),
+        "audience": ",".join(audience),
         "scope": "auth capi",
         "response_type": "code",
         "client_id": CAPI.client_id,

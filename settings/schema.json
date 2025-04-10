@@ -79,11 +79,21 @@
                 "user_agent": {
                     "type": "string",
                     "description": "User agent to use when interacting with CAPI."
+                },
+                "retry_refresh": {
+                    "type": "boolean",
+                    "description": "Attempt to refresh tokens after expiry."
+                },
+                "use_epic": {
+                    "type": "boolean",
+                    "description": "Allow using Epic games for CAPI authentication."
                 }
             },
             "required": [
                 "client_id",
-                "redirect_url"
+                "redirect_url",
+                "retry_refresh",
+                "use_epic"
             ]
         },
         "discord": {
