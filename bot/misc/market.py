@@ -172,6 +172,8 @@ class Market(commands.Cog):
 
         new_market.append(new_tritium)
 
+        _LOGGER.info("Manually updating '%s' for %s", depot, interaction.user.name)
+
         success = await eddn.upload.commodity(
             depot.name,
             depot.system.name,

@@ -1,6 +1,7 @@
 """Allows users setup Companion API integration."""
 
 import json
+import logging
 from io import BytesIO
 from itertools import chain
 from typing import Any
@@ -18,6 +19,8 @@ from settings import CAPI, DISCORD, SOFTWARE, TIMINGS
 
 from .prompt import Prompt, carrier_overview
 from .view import CapiView
+
+_LOGGER = logging.getLogger(__name__)
 
 _SUMMARY = (
     f"""
@@ -59,6 +62,8 @@ class Authorise(commands.Cog):
     )
     async def capi(self, interaction: Interaction[Client]) -> None:
         """Help users setup the Companion API."""
+        _LOGGER.info("Sending CAPI Card to %s", interaction.user.name)
+
         assert interaction.client.application
         auth_data = auth.oauth_data()
 
@@ -154,6 +159,13 @@ class Admin(commands.GroupCog, group_name="capi"):
                 ephemeral=True,
             )
             return
+
+        _LOGGER.info(
+            "Fetching '%s' endpoint on '%s' for %s",
+            endpoint.value,
+            commander,
+            interaction.user.name,
+        )
 
         pretty_data = json.dumps(data, indent=4)
         with BytesIO(pretty_data.encode("utf-8")) as bytes_io:
