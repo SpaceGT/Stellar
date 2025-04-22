@@ -265,7 +265,7 @@ class GoogleSheet:
                 self._remote_data |= {f"{title}": values}
 
         except HttpError as error:
-            if error.status_code in (500, 503):
+            if error.status_code in (500, 502, 503):
                 _LOGGER.warning("Pull failed due to unavailable sheet.")
             else:
                 raise error
@@ -311,7 +311,7 @@ class GoogleSheet:
                 spreadsheetId=self._spreadsheet_id, body=request_body
             ).execute()
         except HttpError as error:
-            if error.status_code in (500, 503):
+            if error.status_code in (500, 502, 503):
                 _LOGGER.warning("Push failed due to unavailable sheet.")
             else:
                 raise error
@@ -363,7 +363,7 @@ class GoogleSheet:
             ).execute()
 
         except HttpError as error:
-            if error.status_code in (500, 503):
+            if error.status_code in (500, 502, 503):
                 _LOGGER.warning("Row creation failed due to unavailable sheet.")
             else:
                 raise error
