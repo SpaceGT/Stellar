@@ -8,6 +8,7 @@ import discord
 from discord import Client
 from discord.ui import Modal, TextInput
 
+from bot.core import CLIENT
 from common.capi import CapiData
 from common.depots import Carrier
 from common.enums import Service
@@ -15,6 +16,9 @@ from external.capi import auth
 from services import CAPI_SERVICE, CAPI_WORKER, DEPOT_SERVICE
 from services.capi.worker import _INTERVAL
 from settings import CAPI
+
+InternalCarriers = list[tuple[CapiData, Carrier]]
+ExternalCarriers = list[CapiData]
 
 _LOGGER = logging.getLogger(__name__)
 _START_DATE = datetime.now(timezone.utc)
@@ -28,22 +32,21 @@ _SYNCING = """
 """
 
 
-def _error_message(owner_mention: str) -> str:
+def _error_message() -> str:
+    assert CLIENT.application
     message = (
         "# :link: Frontier Companion API :link:\n"
         + "An error occurred whilst linking your account.\n"
         + f"If you own Elite on `{Service.EPIC}` please run it before you re-auth.\n"
-        + f"Feel free to contact {owner_mention} for assistance!"
+        + f"Feel free to contact {CLIENT.application.owner.mention} for assistance!"
     )
     return message
 
 
-def carrier_overview(discord_id: int, owner_mention: str) -> str:
-    """Creates an overview message for a user's connected carriers"""
-    message = ["# :link: Frontier Companion API :link:"]
-
-    internal: list[tuple[CapiData, Carrier]] = []
-    external: list[CapiData] = []
+def get_carriers(discord_id: int) -> tuple[InternalCarriers, ExternalCarriers]:
+    """Find all carriers owned by a user."""
+    internal: InternalCarriers = []
+    external: ExternalCarriers = []
 
     for info in CAPI_SERVICE.get_data():
         if info.discord_id != discord_id:
@@ -57,6 +60,14 @@ def carrier_overview(discord_id: int, owner_mention: str) -> str:
             internal.append((info, carrier))
         else:
             external.append(info)
+
+    return internal, external
+
+
+def capi_overview(discord_id: int) -> str:
+    """Show connected carriers owned by a user using a message."""
+    message = ["# :link: Frontier Companion API :link:"]
+    internal, external = get_carriers(discord_id)
 
     for info, carrier in internal:
         carrier_message = [f"## `{info.commander}` - `{carrier}`"]
@@ -106,10 +117,11 @@ def carrier_overview(discord_id: int, owner_mention: str) -> str:
         message.append(carrier_message)
 
     if not internal:
+        assert CLIENT.application
         footer = [
             "",
             ":cloud: Market synced with third party apps.",
-            f":tools: Contact {owner_mention} to delist an account.",
+            f":tools: Contact {CLIENT.application.owner.mention} to delist an account.",
         ]
         message.extend(footer)
 
@@ -119,19 +131,16 @@ def carrier_overview(discord_id: int, owner_mention: str) -> str:
 async def _auth_capi(
     interaction: discord.Interaction[Client], auth_code: str, verifier: str
 ) -> None:
-    assert interaction.client.application
-    owner_mention = interaction.client.application.owner.mention
-
     success = await CAPI_SERVICE.auth_account(
         auth_code, verifier, interaction.user.id, sync=True
     )
 
     if success:
-        message = carrier_overview(interaction.user.id, owner_mention)
+        message = capi_overview(interaction.user.id)
         await interaction.edit_original_response(content=message, view=None)
 
     else:
-        message = _error_message(owner_mention)
+        message = _error_message()
         await interaction.edit_original_response(content=message, view=None)
 
 

@@ -12,18 +12,16 @@ from discord.ext import commands
 from thefuzz import process
 
 from bot.core import CLIENT
-from common.enums import State
 from external.capi import AuthEndpoint, QueryEndpoint, auth, query
-from services import CAPI_SERVICE, DEPOT_SERVICE
+from services import CAPI_SERVICE
 from settings import CAPI, DISCORD, SOFTWARE, TIMINGS
 
-from .prompt import Prompt, carrier_overview
+from .prompt import Prompt, capi_overview, get_carriers
 from .view import CapiView
 
 _LOGGER = logging.getLogger(__name__)
 
-_SUMMARY = (
-    f"""
+_SUMMARY = f"""
 # :link: Frontier Companion API :link:
 ## History :clock:
 The Companion API was originally created for an official app on IOS (which has succumbed to bitrot)
@@ -41,14 +39,14 @@ Click on the `Authorise` button.
 Click on the `Connect` button.
 - Paste the link you copied into the form.
 ## Management :clipboard:
-Around 25 days after connecting you will need to re-authorise `{SOFTWARE.name}`."""
-    + f"""
+Around 25 days after connecting you will need to re-authorise `{SOFTWARE.name}`.""" + (
+    f"""
 The recommended way is clicking `Refresh` and logging in.
 This site can be used to revoke {SOFTWARE.name}'s access at any time should you choose.
 """
     if CAPI.retry_refresh
     else f"""
-You will receive reminders to do this every `{TIMINGS.capi_followup.total_seconds() // 3600}` hours via DM.
+You will receive reminders to do this every `{TIMINGS.capi_followup.total_seconds() // 3600:.0f}` hours via DM.
 """
 )
 
@@ -70,17 +68,8 @@ class Authorise(commands.Cog):
         prompt = Prompt(auth_data["verifier"])
         view = CapiView(prompt, auth_data["url"])
 
-        depots = [
-            carrier
-            for carrier in DEPOT_SERVICE.carriers
-            if carrier.owner_discord_id == interaction.user.id
-            and CAPI_SERVICE.get_state(carrier.name) != State.UNLISTED
-        ]
-
-        if depots:
-            message = carrier_overview(
-                interaction.user.id, interaction.client.application.owner.mention
-            )
+        if any(get_carriers(interaction.user.id)):
+            message = capi_overview(interaction.user.id)
         else:
             message = _SUMMARY
 
