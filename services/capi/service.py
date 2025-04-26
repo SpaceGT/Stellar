@@ -88,24 +88,21 @@ class CapiService:
             if data.access_token and data.carrier:
                 continue
 
-            if not data.access_token and CAPI.retry_refresh:
-                success = await self._refresh_token(data.customer_id, lazy=True)
-                await asyncio.sleep(delay.total_seconds())
+            if not data.access_token:
+                if CAPI.retry_refresh:
+                    await self._refresh_token(data.customer_id, lazy=True)
+                    await asyncio.sleep(delay.total_seconds())
 
-                if not success:
+                if not data.access_token:
                     continue
 
             if not data.carrier and (CAPI.use_epic or data.auth_type != Service.EPIC):
-                if not data.access_token or data.access_token[1] < datetime.now(
-                    timezone.utc
-                ):
+                if data.access_token[1] < datetime.now(timezone.utc):
                     success = await self._refresh_token(data.customer_id, lazy=True)
                     await asyncio.sleep(delay.total_seconds())
 
                     if not success:
                         continue
-
-                assert data.access_token
 
                 try:
                     response = await query.fleetcarrier(data.access_token[0])
