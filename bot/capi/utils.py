@@ -34,13 +34,13 @@ async def write_capi_alert(
     guild = CLIENT.get_guild(DISCORD.main_guild_id)
     assert guild
 
-    last_message = [message async for message in owner.history(limit=1)]
-    if (
-        last_message
-        and datetime.now(timezone.utc)
-        - last_message[0].created_at.astimezone(timezone.utc)
-        < TIMINGS.capi_followup
-    ):
+    alerts = [
+        message.created_at
+        async for message in owner.history(limit=10)
+        if commander in message.content
+    ]
+
+    if alerts and datetime.now(timezone.utc) - max(alerts) < TIMINGS.capi_followup:
         return
 
     if internal:
