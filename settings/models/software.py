@@ -13,7 +13,6 @@ class Software:
     name: str
     version: Version
     user_agent: str
-    webhook: str
 
 
 def factory(json: dict[str, Any]) -> Software:
@@ -26,6 +25,5 @@ def factory(json: dict[str, Any]) -> Software:
     name = raw_name or "Stellar"
     version = Version(raw_version)
     user_agent = raw_user_agent or f"{name}-{version}"
-    webhook: str = json["webhook"]
 
-    return Software(name, version, user_agent, webhook)
+    return Software(name, version, user_agent)

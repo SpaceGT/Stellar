@@ -7,8 +7,6 @@ from logging import Formatter, StreamHandler
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
-logging.Formatter.converter = time.gmtime
-
 BASE_DIR = Path(__file__).parent.parent
 
 simple_formatter = Formatter(
@@ -37,8 +35,12 @@ file_handler = TimedRotatingFileHandler(
 file_handler.setFormatter(simple_formatter)
 file_handler.suffix = "%Y%m%d"
 
-root_logger = logging.getLogger()
-root_logger.setLevel(logging.INFO)
 
-root_logger.addHandler(console_handler)
-root_logger.addHandler(file_handler)
+def setup() -> None:
+    logging.Formatter.converter = time.gmtime
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+
+    root_logger.addHandler(console_handler)
+    root_logger.addHandler(file_handler)

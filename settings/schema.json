@@ -20,16 +20,40 @@
                 "user_agent": {
                     "type": "string",
                     "description": "User agent used for API calls."
-                },
-                "webhook": {
-                    "type": "string",
-                    "description": "Webhook to send errors to."
                 }
             },
             "required": [
-                "version",
-                "webhook"
+                "version"
             ]
+        },
+        "webhooks" : {
+            "type": "object",
+            "properties": {
+                "fallback": {
+                    "type": "string",
+                    "description": "Used if no error-specific webhook is specified."
+                },
+                "critical": {
+                    "type": "string",
+                    "description": "Webhook used for critical errors."
+                },
+                "error": {
+                    "type": "string",
+                    "description": "Webhook used for errors."
+                },
+                "warning": {
+                    "type": "string",
+                    "description": "Webhook used for warnings."
+                },
+                "info": {
+                    "type": "string",
+                    "description": "Webhook used for info."
+                },
+                "debug": {
+                    "type": "string",
+                    "description": "Webhook used for debugging."
+                }
+            }
         },
         "eddn": {
             "type": "object",
@@ -180,6 +204,7 @@
     "required": [
         "$schema",
         "software",
+        "webhooks",
         "eddn",
         "capi",
         "discord",
