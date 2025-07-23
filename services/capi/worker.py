@@ -45,7 +45,6 @@ class CapiWorker:
         self.sync: AsyncEvent = AsyncEvent()
 
         self._task: Task | None = None
-        self._delays: tuple[int, datetime | None] = (0, None)
         self._cache: dict[str, datetime] = {}
 
     def start(self) -> None:
@@ -88,33 +87,6 @@ class CapiWorker:
 
         error = future.exception()
         _LOGGER.exception("CAPI worker aborted!", exc_info=error)
-
-    def _retry_delay(self) -> int:
-        initial_delay = 5
-        exp_factor = 4
-        max_delay = 3 * 60**2
-        ignore = 1 * 60**2
-
-        wait_delay: int | None = None
-
-        if self._delays[1]:
-            delta = datetime.now(timezone.utc) - self._delays[1]
-
-            if delta.total_seconds() > ignore:
-                self._delays = (0, None)
-                wait_delay = min(initial_delay, max_delay)
-
-        if wait_delay is None:
-            wait_delay = min(
-                initial_delay * exp_factor ** self._delays[0],
-                max_delay,
-            )
-            self._delays = (
-                self._delays[0] + 1,
-                datetime.now(timezone.utc) + timedelta(seconds=wait_delay),
-            )
-
-        return wait_delay
 
     def _get_external(self) -> list[SimpleCarrier]:
         """
@@ -180,7 +152,7 @@ class CapiWorker:
 
             except ClientConnectionError:
                 _LOGGER.warning("Worker retrying due to connection error.")
-                await asyncio.sleep(self._retry_delay())
+                await asyncio.sleep(_INTERVAL.total_seconds())
                 continue
 
             except EpicFail:
