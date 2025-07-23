@@ -12,7 +12,7 @@ from common import Good, System
 from common.depots import CAPACITY, Carrier
 from common.enums import State
 from external import edsm, inara, spansh
-from external.capi import CapiFail, EpicFail, RefreshFail
+from external.capi import CapiAuthFail, CapiQueryFail, EpicFail, NewTokenFail
 from services import CAPI_SERVICE, DEPOT_SERVICE, Colour, Galaxy
 from services.capi.utils import sync_carrier
 from services.galaxy import Gradient
@@ -352,12 +352,12 @@ class Deploy(commands.GroupCog, group_name="deploy"):
 
             try:
                 capi_response = await CAPI_SERVICE.fleetcarrier(carrier.name)
-            except (EpicFail, CapiFail, RefreshFail) as error:
+            except (EpicFail, CapiQueryFail, CapiAuthFail, NewTokenFail) as error:
                 if isinstance(error, EpicFail):
                     response = (
                         f"## :x: CAPI Fail :x:\nFailed to authenticate with Epic."
                     )
-                elif isinstance(error, CapiFail):
+                elif isinstance(error, (CapiQueryFail, CapiAuthFail)):
                     response = f"## :x: CAPI Fail :x:\nAn internal CAPI error occured."
                 else:
                     response = f"## :x: CAPI Fail :x:\nCould not refresh access token."

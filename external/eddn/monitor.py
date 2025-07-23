@@ -44,7 +44,7 @@ class Monitor:
     def start(self) -> None:
         """Starts monitoring EDDN."""
         if self._task and not self._task.done():
-            _LOGGER.warning("Ignoring duplicate start.")
+            _LOGGER.warning("Worker is already running.")
             return
 
         self._socket.connect(Monitor._ENDPOINT)
@@ -56,7 +56,6 @@ class Monitor:
     def close(self) -> None:
         """Stops monitoring EDDN."""
         if not self._task or self._task.done():
-            _LOGGER.warning("Ignoring duplicate close.")
             return
 
         self._task.cancel()

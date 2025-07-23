@@ -5,11 +5,16 @@ import logging
 from collections.abc import Iterable, Iterator
 from datetime import datetime, timedelta, timezone
 
-from aiohttp import ClientResponseError
-
 from common import CapiData, Good
 from common.enums import Service, State
-from external.capi import CapiFail, EpicFail, RefreshFail, auth, query
+from external.capi import (
+    CapiAuthFail,
+    CapiQueryFail,
+    EpicFail,
+    NewTokenFail,
+    auth,
+    query,
+)
 from settings import CAPI
 from storage import capi
 from utils.events import AsyncEvent
@@ -90,7 +95,15 @@ class CapiService:
 
             if not data.access_token:
                 if CAPI.retry_refresh:
-                    await self._refresh_token(data.customer_id, lazy=True)
+                    try:
+                        await self._refresh_token(data.customer_id, lazy=True)
+                    except NewTokenFail:
+                        pass
+                    except CapiAuthFail:
+                        # Assume this is a Capi issue and not a per-request issue.
+                        _LOGGER.warning("Aborting update due to Capi error")
+                        break
+
                     await asyncio.sleep(delay.total_seconds())
 
                 if not data.access_token:
@@ -98,11 +111,15 @@ class CapiService:
 
             if not data.carrier and (CAPI.use_epic or data.auth_type != Service.EPIC):
                 if data.access_token[1] < datetime.now(timezone.utc):
-                    success = await self._refresh_token(data.customer_id, lazy=True)
                     await asyncio.sleep(delay.total_seconds())
-
-                    if not success:
+                    try:
+                        await self._refresh_token(data.customer_id, lazy=True)
+                    except NewTokenFail:
                         continue
+                    except CapiAuthFail:
+                        # Assume this is a Capi issue and not a per-request issue.
+                        _LOGGER.warning("Aborting update due to Capi error")
+                        break
 
                 try:
                     response = await query.fleetcarrier(data.access_token[0])
@@ -113,7 +130,7 @@ class CapiService:
                         "Epic authentication failed for '%s'", data.commander
                     )
 
-                except CapiFail:
+                except CapiQueryFail:
                     # Assume this is a Capi issue and not a per-request issue.
                     _LOGGER.warning("Aborting update due to Capi error")
                     break
@@ -131,7 +148,7 @@ class CapiService:
         _LOGGER.info("Finished CAPI update")
         await self.push()
 
-    async def _refresh_token(self, account: int, lazy: bool = False) -> bool:
+    async def _refresh_token(self, account: int, lazy: bool = False) -> None:
         """
         Refreshes a token for an account.
         Returns true on success or false if a reauth is needed.
@@ -146,21 +163,22 @@ class CapiService:
                 info.refresh_token
             )
 
-        except RefreshFail:
+        except NewTokenFail:
             _LOGGER.warning("Failed to refresh CAPI token for '%s'", info.commander)
             info.access_token = None
-            success = False
+            raise
+
+        except CapiAuthFail:
+            _LOGGER.warning("cAPI refresh request failed for '%s'", info.commander)
+            raise
 
         else:
             _LOGGER.info("Refreshed CAPI tokens for '%s'", info.commander)
             info.access_token = (access_token, expiry)
             info.refresh_token = refresh_token
-            success = True
 
         if not lazy:
             await self.push()
-
-        return success
 
     def get_data(self) -> _Data:
         """
@@ -180,7 +198,9 @@ class CapiService:
             return None
 
         if info.access_token[1] < datetime.now(timezone.utc):
-            if not await self._refresh_token(info.customer_id):
+            try:
+                await self._refresh_token(info.customer_id)
+            except (CapiAuthFail, NewTokenFail):
                 return None
 
         return info.access_token
@@ -198,8 +218,12 @@ class CapiService:
             access_token, refresh_token, expiry = await auth.get_new_tokens(
                 auth_code, verifier
             )
-        except ClientResponseError:
-            _LOGGER.exception("Authentication failed!")
+        except NewTokenFail:
+            _LOGGER.warning("Registation failed due to incomplete data!")
+            return False
+
+        except CapiAuthFail:
+            _LOGGER.warning("Registation failed due to cAPI server error")
             return False
 
         await asyncio.sleep(delay.total_seconds())
@@ -213,11 +237,11 @@ class CapiService:
             response = await query.fleetcarrier(access_token)
 
         except EpicFail:
-            _LOGGER.warning("Authentication failed due to Epic")
+            _LOGGER.warning("Registation failed due to Epic")
             return False
 
-        except CapiFail:
-            _LOGGER.warning("Authentication failed due to cAPI")
+        except CapiQueryFail:
+            _LOGGER.warning("Registation failed due to cAPI server error")
             return False
 
         if response:
@@ -278,12 +302,14 @@ class CapiService:
             return None
 
         if info.access_token[1] < datetime.now(timezone.utc):
-            if not await self._refresh_token(info.customer_id, lazy):
-                raise RefreshFail
+            try:
+                await self._refresh_token(info.customer_id, lazy)
+            except (NewTokenFail, CapiAuthFail) as error:
+                raise error
 
         try:
             response = await query.fleetcarrier(info.access_token[0])
-        except (EpicFail, CapiFail) as error:
+        except (EpicFail, CapiQueryFail) as error:
             if isinstance(error, EpicFail):
                 info.auth_type = Service.EPIC
                 _LOGGER.warning("Epic authentication failed for '%s'", info.commander)

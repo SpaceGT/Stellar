@@ -10,8 +10,7 @@ from aiohttp import ClientConnectionError
 
 from common.depots import Carrier
 from common.enums import State
-from external.capi import CapiFail, EpicFail
-from external.capi.auth import RefreshFail
+from external.capi import CapiAuthFail, CapiQueryFail, EpicFail, NewTokenFail
 from settings import CAPI
 from utils.events import AsyncEvent
 
@@ -50,7 +49,7 @@ class CapiWorker:
     def start(self) -> None:
         """Starts keeping depots updated with CAPI."""
         if self._task and not self._task.done():
-            _LOGGER.warning("Ignoring duplicate start.")
+            _LOGGER.warning("Worker is already running.")
             return
 
         for carrier in DEPOT_SERVICE.carriers:
@@ -71,7 +70,6 @@ class CapiWorker:
     def close(self) -> None:
         """Stops keeping depots updated with CAPI."""
         if not self._task or self._task.done():
-            _LOGGER.warning("Ignoring duplicate close.")
             return
 
         self._task.cancel()
@@ -160,12 +158,12 @@ class CapiWorker:
                 await asyncio.sleep(_DELAY.total_seconds())
                 continue
 
-            except CapiFail:
+            except (CapiQueryFail, CapiAuthFail):
                 _LOGGER.warning("Worker retrying due to internal cAPI error.")
                 await asyncio.sleep(_INTERVAL.total_seconds())
                 continue
 
-            except RefreshFail:
+            except NewTokenFail:
                 _LOGGER.warning("Skipping '%s' due to token expiry.", str(carrier))
                 await asyncio.sleep(_DELAY.total_seconds())
                 continue

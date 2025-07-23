@@ -37,7 +37,9 @@ def _error_message() -> str:
     message = (
         "# :link: Frontier Companion API :link:\n"
         + "An error occurred whilst linking your account.\n"
-        + f"If you own Elite on `{Service.EPIC}` please run it before you re-auth.\n"
+        + f"- If you own Elite on `{Service.EPIC}` please run it before you re-auth.\n"
+        + "- Do not re-run `/capi` whilst authorising your account.\n"
+        + f"- Try again later in case this is a `{Service.FRONTIER}` issue.\n"
         + f"Feel free to contact {CLIENT.application.owner.mention} for assistance!"
     )
     return message

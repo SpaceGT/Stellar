@@ -19,8 +19,12 @@ _URL = "https://auth.frontierstore.net"
 _LOGGER = logging.getLogger(__name__)
 
 
-class RefreshFail(Exception):
-    """Raised when a token cannot be refreshed."""
+class NewTokenFail(Exception):
+    """Raised when a new token cannot be fetched."""
+
+
+class CapiFail(Exception):
+    """Rasied when cAPI is down for maintenance."""
 
 
 class GetEndpoint(StrEnum):
@@ -42,8 +46,11 @@ async def _post_request(
             url, data=parse.urlencode(query), headers=headers, timeout=_TIMEOUT
         ) as response,
     ):
+        if response.status == 500:
+            raise CapiFail
+
         if response.status == 401:
-            raise RefreshFail
+            raise NewTokenFail
 
         response.raise_for_status()
         data: dict[str, str | int] = await response.json()
