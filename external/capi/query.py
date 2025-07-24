@@ -8,6 +8,7 @@ from typing import Any
 from aiohttp import ClientSession
 
 from common import Good
+from common.depots import stock_bracket
 from settings import CAPI
 
 _TIMEOUT = 60
@@ -87,24 +88,30 @@ async def fleetcarrier(
     if not response:
         return None
 
-    market = [
-        Good(
-            commodity["name"],
-            {
-                "price": commodity["buyPrice"],
-                "quantity": commodity["stock"],
-                "bracket": commodity["stockBracket"],
+    market: list[Good] = []
+    orders = response["orders"]["commodities"]
+
+    for sell_order in orders["sales"]:
+        market.append(Good(
+            name=sell_order["name"],
+            stock_info={
+                "price": int(sell_order["price"]),
+                "quantity": int(sell_order["stock"]),
+                "bracket": stock_bracket(int(sell_order["stock"])),
             },
-            {
-                "price": commodity["sellPrice"],
-                "quantity": commodity["demand"],
-                "bracket": commodity["demandBracket"],
+            demand_info={}
+        ))
+
+    for buy_order in orders["purchases"]:
+        market.append(Good(
+            name=buy_order["name"],
+            demand_info={
+                "price": buy_order["price"],
+                "quantity": buy_order["outstanding"],
+                "bracket": stock_bracket(buy_order["outstanding"]),
             },
-            commodity["meanPrice"],
-        )
-        for commodity in response["market"]["commodities"]
-        if commodity["categoryname"] != "NonMarketable"
-    ]
+            stock_info={}
+        ))
 
     display_name = base64.b16decode(
         response["name"]["vanityName"], casefold=True
